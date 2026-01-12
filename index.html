@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prediction Markets</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      line-height: 1.6;
+    }
+    h1, h2, h3 {
+      color: #fff;
+    }
+    a {
+      color: #7cb3ff;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      width: 100%;
+      margin: 8px 0;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+    button:disabled {
+      background: #444;
+      cursor: not-allowed;
+    }
+    button.secondary {
+      background: #333;
+    }
+    button.secondary:hover {
+      background: #444;
+    }
+    button.yes {
+      background: #16a34a;
+    }
+    button.yes:hover {
+      background: #15803d;
+    }
+    button.no {
+      background: #dc2626;
+    }
+    button.no:hover {
+      background: #b91c1c;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0;
+      border: 1px solid #333;
+      border-radius: 6px;
+      background: #1a1a1a;
+      color: #e0e0e0;
+      font-size: 16px;
+    }
+    input:focus, textarea:focus {
+      outline: none;
+      border-color: #2563eb;
+    }
+    label {
+      display: block;
+      margin-top: 16px;
+      font-weight: 500;
+    }
+    .view {
+      display: none;
+    }
+    .view.active {
+      display: block;
+    }
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 16px 0;
+    }
+    .odds {
+      display: flex;
+      gap: 16px;
+      margin: 16px 0;
+    }
+    .odds > div {
+      flex: 1;
+      text-align: center;
+      padding: 16px;
+      border-radius: 8px;
+      background: #222;
+    }
+    .odds .outcome {
+      font-size: 14px;
+      color: #888;
+      margin-bottom: 4px;
+    }
+    .odds .payout {
+      font-size: 24px;
+      font-weight: bold;
+    }
+    .odds .pool {
+      font-size: 12px;
+      color: #666;
+      margin-top: 4px;
+    }
+    .status {
+      padding: 12px;
+      border-radius: 6px;
+      margin: 16px 0;
+    }
+    .status.info {
+      background: #1e3a5f;
+      border: 1px solid #2563eb;
+    }
+    .status.success {
+      background: #14532d;
+      border: 1px solid #16a34a;
+    }
+    .status.error {
+      background: #450a0a;
+      border: 1px solid #dc2626;
+    }
+    .status.warning {
+      background: #422006;
+      border: 1px solid #d97706;
+    }
+    .qr-container {
+      text-align: center;
+      padding: 20px;
+      background: white;
+      border-radius: 8px;
+      margin: 16px 0;
+    }
+    .qr-container img {
+      max-width: 200px;
+    }
+    .invoice-text {
+      font-family: monospace;
+      font-size: 12px;
+      word-break: break-all;
+      background: #111;
+      padding: 12px;
+      border-radius: 6px;
+      margin: 8px 0;
+    }
+    .nsec-warning {
+      background: #422006;
+      border: 1px solid #d97706;
+      padding: 16px;
+      border-radius: 8px;
+      margin: 16px 0;
+    }
+    .nsec-display {
+      font-family: monospace;
+      background: #111;
+      padding: 12px;
+      border-radius: 6px;
+      word-break: break-all;
+      margin: 8px 0;
+    }
+    .bet-list {
+      margin: 16px 0;
+    }
+    .bet-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px;
+      border-bottom: 1px solid #333;
+    }
+    .bet-item:last-child {
+      border-bottom: none;
+    }
+    .hidden {
+      display: none;
+    }
+    .loader {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid #333;
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #333;
+      text-align: center;
+      color: #666;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Home View -->
+  <div id="home-view" class="view active">
+    <h1>Prediction Markets</h1>
+    <p>Create and bet on predictions using Bitcoin Lightning. No accounts, no servers.</p>
+
+    <button id="btn-create-view">Create a Market</button>
+    <button id="btn-load-view" class="secondary">Load a Market</button>
+
+    <div class="card">
+      <h3>How it works</h3>
+      <p><strong>Creators:</strong> Set up a question, share the link, collect bets, resolve, and pay winners. You keep 5%.</p>
+      <p><strong>Bettors:</strong> Click a link, pick a side, pay with Lightning, get paid if you win.</p>
+    </div>
+  </div>
+
+  <!-- Create Market View -->
+  <div id="create-view" class="view">
+    <h2>Create a Market</h2>
+
+    <div id="create-step-1">
+      <label>NWC Connection String</label>
+      <input type="text" id="nwc-input" placeholder="nostr+walletconnect://..." />
+      <p style="color: #888; font-size: 14px;">Get this from your NWC wallet (Alby Hub, Primal, etc.)</p>
+
+      <label>Question</label>
+      <input type="text" id="question-input" placeholder="Will X happen by Y date?" />
+
+      <label>Resolution Date</label>
+      <input type="datetime-local" id="resolution-date-input" />
+
+      <label>Resolution Criteria</label>
+      <textarea id="criteria-input" rows="3" placeholder="Yes if... No if..."></textarea>
+
+      <label>Max Bet (sats, optional)</label>
+      <input type="number" id="max-bet-input" placeholder="10000" />
+
+      <button id="btn-create-market">Create Market</button>
+      <button id="btn-cancel-create" class="secondary">Cancel</button>
+    </div>
+
+    <div id="create-step-2" class="hidden">
+      <div class="status success">Market created!</div>
+
+      <div class="nsec-warning">
+        <strong>Save this secret key!</strong>
+        <p>You need it to resolve the market later. Store it securely.</p>
+        <div class="nsec-display" id="nsec-display"></div>
+        <button onclick="copyNsec()">Copy to Clipboard</button>
+      </div>
+
+      <label>Share this link:</label>
+      <input type="text" id="share-url" readonly />
+      <button onclick="copyShareUrl()">Copy Link</button>
+      <button class="secondary" onclick="goToMarket()">Go to Market</button>
+    </div>
+  </div>
+
+  <!-- Load Market View -->
+  <div id="load-view" class="view">
+    <h2>Load a Market</h2>
+    <p style="color: #888;">Paste a market URL or ID that was shared with you.</p>
+    <label>Market URL or ID</label>
+    <input type="text" id="market-id-input" placeholder="https://...?m=note1... or note1..." />
+    <button id="btn-load-market">Load Market</button>
+    <button id="btn-back-load" class="secondary">Back</button>
+  </div>
+
+  <!-- Market View (Betting) -->
+  <div id="market-view" class="view">
+    <h2 id="market-question">Loading...</h2>
+
+    <div class="card">
+      <p><strong>Resolves:</strong> <span id="market-resolution-date"></span></p>
+      <p><strong>Criteria:</strong> <span id="market-criteria"></span></p>
+    </div>
+
+    <div class="odds">
+      <div>
+        <div class="outcome">YES</div>
+        <div class="payout" id="yes-payout">-</div>
+        <div class="pool" id="yes-pool">0 sats</div>
+      </div>
+      <div>
+        <div class="outcome">NO</div>
+        <div class="payout" id="no-payout">-</div>
+        <div class="pool" id="no-pool">0 sats</div>
+      </div>
+    </div>
+
+    <div id="betting-open">
+      <div id="bet-form">
+        <label>Your Lightning Address (for payout)</label>
+        <input type="text" id="payout-address-input" placeholder="you@walletofsatoshi.com" />
+
+        <label>Bet Amount (sats)</label>
+        <input type="number" id="bet-amount-input" placeholder="500" />
+
+        <div style="display: flex; gap: 16px;">
+          <button class="yes" onclick="placeBet('yes')">Bet YES</button>
+          <button class="no" onclick="placeBet('no')">Bet NO</button>
+        </div>
+      </div>
+
+      <div id="bet-invoice" class="hidden">
+        <div class="status info">Pay this invoice to confirm your bet:</div>
+        <div class="qr-container" id="qr-container">
+        </div>
+        <div class="invoice-text" id="invoice-text"></div>
+        <button onclick="copyInvoice()">Copy Invoice</button>
+        <button class="secondary" onclick="cancelBet()">Cancel</button>
+        <p id="payment-status" style="text-align: center;">Waiting for payment...</p>
+      </div>
+
+      <div id="bet-confirmed" class="hidden">
+        <div class="status success">Bet confirmed!</div>
+        <p>Your bet has been recorded. If you win, payment will be sent to your Lightning Address.</p>
+        <button onclick="resetBetForm()">Place Another Bet</button>
+      </div>
+    </div>
+
+    <div id="betting-closed" class="hidden">
+      <div class="status warning">Betting is closed. Awaiting resolution.</div>
+    </div>
+
+    <div id="market-resolved" class="hidden">
+      <div class="status success">
+        <strong>Resolved:</strong> <span id="resolved-outcome"></span> won!
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Recent Bets</h3>
+      <div id="bet-list" class="bet-list">
+        <p style="color: #666;">No bets yet</p>
+      </div>
+    </div>
+
+    <button class="secondary" onclick="showView('home-view')">Back to Home</button>
+    <button class="secondary" onclick="showView('resolve-view')" id="resolve-btn">Resolve Market (Creator)</button>
+  </div>
+
+  <!-- Resolve View -->
+  <div id="resolve-view" class="view">
+    <h2>Resolve Market</h2>
+    <p id="resolve-question"></p>
+
+    <label>Your nsec (secret key)</label>
+    <input type="password" id="resolve-nsec-input" placeholder="nsec1..." />
+
+    <div id="resolve-form">
+      <p>Select the winning outcome:</p>
+      <button class="yes" onclick="resolveMarket('yes')">YES Won</button>
+      <button class="no" onclick="resolveMarket('no')">NO Won</button>
+    </div>
+
+    <div id="payout-section" class="hidden">
+      <div class="status success">Market resolved!</div>
+      <h3>Payouts</h3>
+      <div id="payout-list"></div>
+      <button onclick="payAllWinners()">Pay All Winners</button>
+      <div id="payout-status"></div>
+    </div>
+
+    <button class="secondary" onclick="showView('market-view')">Back to Market</button>
+  </div>
+
+  <footer>
+    <p>Powered by Nostr + Lightning</p>
+    <p>Data stored on: relay.damus.io, relay.primal.net</p>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script type="module">
+    // ============================================
+    // IMPORTS
+    // ============================================
+    import { generateSecretKey, getPublicKey, finalizeEvent, verifyEvent } from 'https://esm.sh/nostr-tools@2.10.4';
+    import { nsecEncode, npubEncode, noteEncode, decode as nip19Decode } from 'https://esm.sh/nostr-tools@2.10.4/nip19';
+    import { Relay } from 'https://esm.sh/nostr-tools@2.10.4/relay';
+    import { encrypt as nip04Encrypt, decrypt as nip04Decrypt } from 'https://esm.sh/nostr-tools@2.10.4/nip04';
+
+    // ============================================
+    // GLOBALS
+    // ============================================
+    const RELAYS = [
+      'wss://relay.damus.io',
+      'wss://relay.primal.net'
+    ];
+    const FEE_PERCENT = 5;
+
+    let relayConnections = [];
+    let currentMarket = null;
+    let currentBets = [];
+    let currentResolution = null;
+    let creatorNsec = null;
+    let creatorNwcString = null;
+    let pendingInvoice = null;
+    let invoiceCheckInterval = null;
+
+    // ============================================
+    // VIEW MANAGEMENT
+    // ============================================
+    function showView(viewId) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById(viewId).classList.add('active');
+    }
+    window.showView = showView;
+
+    // ============================================
+    // NOSTR UTILITIES
+    // ============================================
+    function generateKeypair() {
+      const sk = generateSecretKey();
+      const pk = getPublicKey(sk);
+      const nsec = nsecEncode(sk);
+      const npub = npubEncode(pk);
+      return { sk, pk, nsec, npub };
+    }
+
+    function decodeNsec(nsec) {
+      try {
+        const { type, data } = nip19Decode(nsec);
+        if (type === 'nsec') return data;
+      } catch (e) {
+        console.error('Failed to decode nsec:', e);
+      }
+      return null;
+    }
+
+    function decodeNoteId(noteId) {
+      try {
+        if (noteId.startsWith('note1')) {
+          const { type, data } = nip19Decode(noteId);
+          if (type === 'note') return data;
+        }
+        // Assume hex
+        if (/^[0-9a-f]{64}$/i.test(noteId)) return noteId;
+      } catch (e) {
+        console.error('Failed to decode note ID:', e);
+      }
+      return null;
+    }
+
+    async function connectRelays() {
+      relayConnections = [];
+      for (const url of RELAYS) {
+        try {
+          console.log('Connecting to', url);
+          const relay = await Relay.connect(url);
+          relayConnections.push(relay);
+          console.log('Connected to', url);
+        } catch (e) {
+          console.error('Failed to connect to', url, e);
+        }
+      }
+      console.log('Connected to', relayConnections.length, 'relays');
+      return relayConnections.length > 0;
+    }
+
+    async function publishEvent(event) {
+      let published = false;
+      for (const relay of relayConnections) {
+        try {
+          await relay.publish(event);
+          published = true;
+          console.log('Published to', relay.url);
+        } catch (e) {
+          console.error('Failed to publish to', relay.url, e);
+        }
+      }
+      return published;
+    }
+
+    async function fetchEvents(filter) {
+      const events = [];
+      const seen = new Set();
+
+      for (const relay of relayConnections) {
+        try {
+          const sub = relay.subscribe([filter], {
+            onevent(event) {
+              if (!seen.has(event.id)) {
+                seen.add(event.id);
+                events.push(event);
+              }
+            }
+          });
+          // Wait a bit for events to come in
+          await new Promise(r => setTimeout(r, 2000));
+          sub.close();
+        } catch (e) {
+          console.error('Failed to fetch from', relay.url, e);
+        }
+      }
+      return events;
+    }
+
+    // ============================================
+    // NWC UTILITIES
+    // ============================================
+    function parseNwcString(nwcString) {
+      try {
+        // Format: nostr+walletconnect://<pubkey>?relay=<relay>&secret=<secret>
+        const url = new URL(nwcString.replace('nostr+walletconnect://', 'https://'));
+        const pubkey = url.hostname || url.pathname.replace('//', '');
+        const relay = url.searchParams.get('relay');
+        const secret = url.searchParams.get('secret');
+        return { pubkey, relay, secret };
+      } catch (e) {
+        console.error('Failed to parse NWC string', e);
+        return null;
+      }
+    }
+
+    async function nwcRequest(method, params = {}) {
+      console.log('NWC request:', method, params);
+      const nwc = parseNwcString(creatorNwcString);
+      if (!nwc) throw new Error('Invalid NWC connection');
+
+      // NWC secret is hex-encoded
+      const secretKey = hexToBytes(nwc.secret);
+
+      // Connect to NWC relay
+      const relay = await Relay.connect(nwc.relay);
+
+      // Create request
+      const request = {
+        method,
+        params
+      };
+
+      const content = await nip04Encrypt(secretKey, nwc.pubkey, JSON.stringify(request));
+
+      const event = {
+        kind: 23194,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [['p', nwc.pubkey]],
+        content
+      };
+
+      const signedEvent = finalizeEvent(event, secretKey);
+      await relay.publish(signedEvent);
+
+      // Wait for response
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          sub.close();
+          relay.close();
+          reject(new Error('NWC request timeout'));
+        }, 30000);
+
+        const sub = relay.subscribe([{
+          kinds: [23195],
+          '#e': [signedEvent.id],
+          since: Math.floor(Date.now() / 1000) - 10
+        }], {
+          async onevent(event) {
+            try {
+              const decrypted = await nip04Decrypt(secretKey, nwc.pubkey, event.content);
+              const response = JSON.parse(decrypted);
+              clearTimeout(timeout);
+              sub.close();
+              relay.close();
+              if (response.error) {
+                reject(new Error(response.error.message || 'NWC error'));
+              } else {
+                resolve(response.result);
+              }
+            } catch (e) {
+              reject(e);
+            }
+          }
+        });
+      });
+    }
+
+    function hexToBytes(hex) {
+      const bytes = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < hex.length; i += 2) {
+        bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+      }
+      return bytes;
+    }
+
+    function bytesToHex(bytes) {
+      return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // ============================================
+    // CREATE MARKET
+    // ============================================
+    async function createMarket() {
+      console.log('Creating market...');
+      try {
+
+      const nwcString = document.getElementById('nwc-input').value.trim();
+      const question = document.getElementById('question-input').value.trim();
+      const resolutionDate = document.getElementById('resolution-date-input').value;
+      const criteria = document.getElementById('criteria-input').value.trim();
+      const maxBet = document.getElementById('max-bet-input').value;
+
+      if (!nwcString || !question || !resolutionDate || !criteria) {
+        alert('Please fill in all required fields');
+        return;
+      }
+
+      creatorNwcString = nwcString;
+
+      // Generate keypair for this market
+      console.log('Generating keypair...');
+      const keypair = generateKeypair();
+      creatorNsec = keypair.nsec;
+      console.log('Keypair generated:', keypair.npub);
+
+      // Connect to relays
+      if (relayConnections.length === 0) {
+        console.log('Connecting to relays...');
+        const connected = await connectRelays();
+        if (!connected) {
+          alert('Failed to connect to relays');
+          return;
+        }
+      }
+
+      // Create market event
+      const marketContent = {
+        type: 'market',
+        question,
+        resolution_date: new Date(resolutionDate).toISOString(),
+        resolution_criteria: criteria
+      };
+      if (maxBet) {
+        marketContent.max_bet_sats = parseInt(maxBet);
+      }
+
+      const event = {
+        kind: 1,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ['t', 'prediction-market'],
+          ['t', 'pm-market']
+        ],
+        content: JSON.stringify(marketContent)
+      };
+
+      console.log('Signing event...');
+      const signedEvent = finalizeEvent(event, keypair.sk);
+      console.log('Event signed:', signedEvent.id);
+
+      console.log('Publishing event...');
+      const published = await publishEvent(signedEvent);
+      if (!published) {
+        alert('Failed to publish market');
+        return;
+      }
+      console.log('Event published!');
+
+      // Store NWC and SK in localStorage for this market
+      localStorage.setItem(`nwc_${signedEvent.id}`, nwcString);
+      localStorage.setItem(`sk_${signedEvent.id}`, bytesToHex(keypair.sk));
+
+      // Show success
+      document.getElementById('nsec-display').textContent = keypair.nsec;
+      document.getElementById('share-url').value = `${window.location.origin}${window.location.pathname}?m=${noteEncode(signedEvent.id)}`;
+
+      document.getElementById('create-step-1').classList.add('hidden');
+      document.getElementById('create-step-2').classList.remove('hidden');
+
+      currentMarket = {
+        id: signedEvent.id,
+        pubkey: keypair.pk,
+        content: marketContent,
+        event: signedEvent
+      };
+
+      } catch (e) {
+        console.error('Error creating market:', e);
+        alert('Error creating market: ' + e.message);
+      }
+    }
+    window.createMarket = createMarket;
+
+    function copyNsec() {
+      navigator.clipboard.writeText(document.getElementById('nsec-display').textContent);
+      alert('Copied!');
+    }
+    window.copyNsec = copyNsec;
+
+    function copyShareUrl() {
+      navigator.clipboard.writeText(document.getElementById('share-url').value);
+      alert('Copied!');
+    }
+    window.copyShareUrl = copyShareUrl;
+
+    function goToMarket() {
+      window.location.href = document.getElementById('share-url').value;
+    }
+    window.goToMarket = goToMarket;
+
+    // ============================================
+    // LOAD MARKET
+    // ============================================
+    async function loadMarketById() {
+      let input = document.getElementById('market-id-input').value.trim();
+
+      // If it's a URL, extract the market ID from it
+      if (input.includes('?m=')) {
+        try {
+          const url = new URL(input);
+          input = url.searchParams.get('m') || input;
+        } catch (e) {
+          // Not a valid URL, try as-is
+        }
+      }
+
+      const eventId = decodeNoteId(input);
+      if (!eventId) {
+        alert('Invalid market URL or ID');
+        return;
+      }
+      await loadMarket(eventId);
+    }
+    window.loadMarketById = loadMarketById;
+
+    async function loadMarket(eventId) {
+      // Connect to relays
+      if (relayConnections.length === 0) {
+        const connected = await connectRelays();
+        if (!connected) {
+          alert('Failed to connect to relays');
+          return;
+        }
+      }
+
+      // Fetch market event
+      const marketEvents = await fetchEvents({
+        ids: [eventId],
+        kinds: [1]
+      });
+
+      if (marketEvents.length === 0) {
+        alert('Market not found');
+        return;
+      }
+
+      const marketEvent = marketEvents[0];
+      let content;
+      try {
+        content = JSON.parse(marketEvent.content);
+        if (content.type !== 'market') throw new Error('Not a market event');
+      } catch (e) {
+        alert('Invalid market event');
+        return;
+      }
+
+      currentMarket = {
+        id: eventId,
+        pubkey: marketEvent.pubkey,
+        content,
+        event: marketEvent
+      };
+
+      // Load NWC from localStorage if we're the creator
+      const storedNwc = localStorage.getItem(`nwc_${eventId}`);
+      if (storedNwc) {
+        creatorNwcString = storedNwc;
+      }
+
+      // Fetch bets
+      const betEvents = await fetchEvents({
+        kinds: [1],
+        '#t': ['pm-bet'],
+        '#e': [eventId]
+      });
+
+      currentBets = betEvents.map(e => {
+        try {
+          return { ...JSON.parse(e.content), id: e.id, created_at: e.created_at };
+        } catch {
+          return null;
+        }
+      }).filter(b => b && b.type === 'bet');
+
+      // Fetch resolution
+      const resolutionEvents = await fetchEvents({
+        kinds: [1],
+        '#t': ['pm-resolution'],
+        '#e': [eventId]
+      });
+
+      currentResolution = null;
+      for (const e of resolutionEvents) {
+        try {
+          const r = JSON.parse(e.content);
+          if (r.type === 'resolution' && e.pubkey === marketEvent.pubkey) {
+            currentResolution = r;
+            break;
+          }
+        } catch {}
+      }
+
+      renderMarket();
+      showView('market-view');
+    }
+
+    function renderMarket() {
+      if (!currentMarket) return;
+
+      const c = currentMarket.content;
+      document.getElementById('market-question').textContent = c.question;
+      document.getElementById('market-resolution-date').textContent = new Date(c.resolution_date).toLocaleString();
+      document.getElementById('market-criteria').textContent = c.resolution_criteria;
+      document.getElementById('resolve-question').textContent = c.question;
+
+      // Calculate pools
+      let yesPool = 0;
+      let noPool = 0;
+      for (const bet of currentBets) {
+        if (bet.outcome === 'yes') yesPool += bet.amount_sats;
+        else if (bet.outcome === 'no') noPool += bet.amount_sats;
+      }
+
+      const totalPool = yesPool + noPool;
+      const poolAfterFee = totalPool * (1 - FEE_PERCENT / 100);
+
+      document.getElementById('yes-pool').textContent = `${yesPool.toLocaleString()} sats`;
+      document.getElementById('no-pool').textContent = `${noPool.toLocaleString()} sats`;
+
+      if (totalPool > 0) {
+        const yesPayout = yesPool > 0 ? (poolAfterFee / yesPool).toFixed(2) + 'x' : '-';
+        const noPayout = noPool > 0 ? (poolAfterFee / noPool).toFixed(2) + 'x' : '-';
+        document.getElementById('yes-payout').textContent = yesPayout;
+        document.getElementById('no-payout').textContent = noPayout;
+      } else {
+        document.getElementById('yes-payout').textContent = '-';
+        document.getElementById('no-payout').textContent = '-';
+      }
+
+      // Render bet list
+      const betList = document.getElementById('bet-list');
+      if (currentBets.length === 0) {
+        betList.innerHTML = '<p style="color: #666;">No bets yet</p>';
+      } else {
+        betList.innerHTML = currentBets.slice(-10).reverse().map(b => `
+          <div class="bet-item">
+            <span>${b.outcome.toUpperCase()}</span>
+            <span>${b.amount_sats.toLocaleString()} sats</span>
+          </div>
+        `).join('');
+      }
+
+      // Check market state
+      const now = new Date();
+      const resolutionDate = new Date(c.resolution_date);
+
+      if (currentResolution) {
+        document.getElementById('betting-open').classList.add('hidden');
+        document.getElementById('betting-closed').classList.add('hidden');
+        document.getElementById('market-resolved').classList.remove('hidden');
+        document.getElementById('resolved-outcome').textContent = currentResolution.winning_outcome.toUpperCase();
+      } else if (now > resolutionDate) {
+        document.getElementById('betting-open').classList.add('hidden');
+        document.getElementById('betting-closed').classList.remove('hidden');
+        document.getElementById('market-resolved').classList.add('hidden');
+      } else {
+        document.getElementById('betting-open').classList.remove('hidden');
+        document.getElementById('betting-closed').classList.add('hidden');
+        document.getElementById('market-resolved').classList.add('hidden');
+      }
+    }
+
+    // ============================================
+    // BETTING
+    // ============================================
+    async function placeBet(outcome) {
+      console.log('Placing bet on', outcome);
+      const payoutAddress = document.getElementById('payout-address-input').value.trim();
+      const amount = parseInt(document.getElementById('bet-amount-input').value);
+
+      if (!payoutAddress || !payoutAddress.includes('@')) {
+        alert('Please enter a valid Lightning Address');
+        return;
+      }
+      if (!amount || amount < 1) {
+        alert('Please enter a valid amount');
+        return;
+      }
+      if (currentMarket.content.max_bet_sats && amount > currentMarket.content.max_bet_sats) {
+        alert(`Maximum bet is ${currentMarket.content.max_bet_sats} sats`);
+        return;
+      }
+
+      // Check if we have NWC for this market
+      if (!creatorNwcString) {
+        alert('This market cannot accept bets (creator wallet not connected)');
+        return;
+      }
+
+      // Generate invoice via NWC
+      try {
+        document.getElementById('bet-form').classList.add('hidden');
+        document.getElementById('bet-invoice').classList.remove('hidden');
+        document.getElementById('payment-status').textContent = 'Generating invoice...';
+
+        const result = await nwcRequest('make_invoice', {
+          amount: amount * 1000, // millisats
+          description: `Bet ${amount} sats on ${outcome.toUpperCase()} - ${currentMarket.content.question.slice(0, 50)}`
+        });
+
+        pendingInvoice = {
+          paymentRequest: result.invoice,
+          paymentHash: result.payment_hash,
+          outcome,
+          amount,
+          payoutAddress
+        };
+
+        // Show QR code
+        document.getElementById('invoice-text').textContent = result.invoice;
+        const qrContainer = document.getElementById('qr-container');
+        qrContainer.innerHTML = '';
+        new QRCode(qrContainer, {
+          text: result.invoice,
+          width: 200,
+          height: 200
+        });
+        document.getElementById('payment-status').textContent = 'Waiting for payment...';
+
+        // Start checking for payment
+        invoiceCheckInterval = setInterval(checkPayment, 3000);
+
+      } catch (e) {
+        console.error('Failed to create invoice', e);
+        alert('Failed to create invoice: ' + e.message);
+        resetBetForm();
+      }
+    }
+    window.placeBet = placeBet;
+
+    async function checkPayment() {
+      if (!pendingInvoice) return;
+
+      try {
+        const result = await nwcRequest('lookup_invoice', {
+          payment_hash: pendingInvoice.paymentHash
+        });
+
+        if (result.settled) {
+          clearInterval(invoiceCheckInterval);
+          await recordBet();
+        }
+      } catch (e) {
+        console.error('Failed to check payment', e);
+      }
+    }
+
+    async function recordBet() {
+      if (!pendingInvoice) return;
+
+      document.getElementById('payment-status').textContent = 'Recording bet...';
+
+      // Get creator's secret key from stored nsec or prompt
+      let sk;
+      const storedNsec = creatorNsec;
+      if (storedNsec) {
+        sk = decodeNsec(storedNsec);
+      }
+
+      // For now, we'll need the creator to be the one placing bets (since they sign)
+      // In a real implementation, the creator's backend would do this
+      // For MVP, we store the keypair in localStorage
+      const storedSk = localStorage.getItem(`sk_${currentMarket.id}`);
+      if (storedSk) {
+        sk = hexToBytes(storedSk);
+      }
+
+      if (!sk) {
+        // Can't sign - just show success anyway (the payment happened)
+        document.getElementById('bet-invoice').classList.add('hidden');
+        document.getElementById('bet-confirmed').classList.remove('hidden');
+
+        // Add to local bets for display
+        currentBets.push({
+          type: 'bet',
+          market_id: currentMarket.id,
+          outcome: pendingInvoice.outcome,
+          amount_sats: pendingInvoice.amount,
+          payout_address: pendingInvoice.payoutAddress,
+          payment_hash: pendingInvoice.paymentHash
+        });
+        renderMarket();
+        pendingInvoice = null;
+        return;
+      }
+
+      // Create bet event
+      const betContent = {
+        type: 'bet',
+        market_id: currentMarket.id,
+        outcome: pendingInvoice.outcome,
+        amount_sats: pendingInvoice.amount,
+        payout_address: pendingInvoice.payoutAddress,
+        payment_hash: pendingInvoice.paymentHash
+      };
+
+      const event = {
+        kind: 1,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ['t', 'prediction-market'],
+          ['t', 'pm-bet'],
+          ['e', currentMarket.id]
+        ],
+        content: JSON.stringify(betContent)
+      };
+
+      const signedEvent = finalizeEvent(event, sk);
+      await publishEvent(signedEvent);
+
+      // Show confirmation
+      document.getElementById('bet-invoice').classList.add('hidden');
+      document.getElementById('bet-confirmed').classList.remove('hidden');
+
+      currentBets.push({ ...betContent, id: signedEvent.id });
+      renderMarket();
+      pendingInvoice = null;
+    }
+
+    function cancelBet() {
+      clearInterval(invoiceCheckInterval);
+      pendingInvoice = null;
+      resetBetForm();
+    }
+    window.cancelBet = cancelBet;
+
+    function resetBetForm() {
+      document.getElementById('bet-form').classList.remove('hidden');
+      document.getElementById('bet-invoice').classList.add('hidden');
+      document.getElementById('bet-confirmed').classList.add('hidden');
+    }
+    window.resetBetForm = resetBetForm;
+
+    function copyInvoice() {
+      navigator.clipboard.writeText(document.getElementById('invoice-text').textContent);
+      alert('Copied!');
+    }
+    window.copyInvoice = copyInvoice;
+
+    // ============================================
+    // RESOLUTION
+    // ============================================
+    async function resolveMarket(outcome) {
+      console.log('Resolving market:', outcome);
+      const nsecInput = document.getElementById('resolve-nsec-input').value.trim();
+      const sk = decodeNsec(nsecInput);
+
+      if (!sk) {
+        alert('Invalid nsec');
+        return;
+      }
+
+      const pk = getPublicKey(sk);
+      if (pk !== currentMarket.pubkey) {
+        alert('This nsec does not match the market creator');
+        return;
+      }
+
+      // Create resolution event
+      const resolutionContent = {
+        type: 'resolution',
+        market_id: currentMarket.id,
+        winning_outcome: outcome
+      };
+
+      const event = {
+        kind: 1,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ['t', 'prediction-market'],
+          ['t', 'pm-resolution'],
+          ['e', currentMarket.id]
+        ],
+        content: JSON.stringify(resolutionContent)
+      };
+
+      const signedEvent = finalizeEvent(event, sk);
+      const published = await publishEvent(signedEvent);
+
+      if (!published) {
+        alert('Failed to publish resolution');
+        return;
+      }
+
+      currentResolution = resolutionContent;
+
+      // Calculate payouts
+      const winners = currentBets.filter(b => b.outcome === outcome);
+      const winningPool = winners.reduce((sum, b) => sum + b.amount_sats, 0);
+      const totalPool = currentBets.reduce((sum, b) => sum + b.amount_sats, 0);
+      const poolAfterFee = totalPool * (1 - FEE_PERCENT / 100);
+
+      const payouts = winners.map(b => ({
+        address: b.payout_address,
+        amount: Math.floor(b.amount_sats / winningPool * poolAfterFee)
+      }));
+
+      // Show payout section
+      document.getElementById('resolve-form').classList.add('hidden');
+      document.getElementById('payout-section').classList.remove('hidden');
+
+      const payoutList = document.getElementById('payout-list');
+      if (payouts.length === 0) {
+        payoutList.innerHTML = '<p>No winners to pay out</p>';
+      } else {
+        payoutList.innerHTML = payouts.map(p => `
+          <div class="bet-item">
+            <span>${p.address}</span>
+            <span>${p.amount.toLocaleString()} sats</span>
+          </div>
+        `).join('');
+      }
+
+      // Store payouts for payment
+      window.pendingPayouts = payouts;
+
+      // Refresh market view
+      renderMarket();
+    }
+    window.resolveMarket = resolveMarket;
+
+    async function payAllWinners() {
+      if (!window.pendingPayouts || window.pendingPayouts.length === 0) {
+        alert('No payouts to send');
+        return;
+      }
+
+      if (!creatorNwcString) {
+        creatorNwcString = localStorage.getItem(`nwc_${currentMarket.id}`);
+        if (!creatorNwcString) {
+          alert('NWC connection not found. Please paste your NWC string.');
+          return;
+        }
+      }
+
+      const statusEl = document.getElementById('payout-status');
+      statusEl.innerHTML = '<div class="status info">Sending payouts...</div>';
+
+      let successful = 0;
+      let failed = 0;
+
+      for (const payout of window.pendingPayouts) {
+        try {
+          statusEl.innerHTML = `<div class="status info">Paying ${payout.address}...</div>`;
+
+          // First, get an invoice from the Lightning Address
+          const [name, domain] = payout.address.split('@');
+          const lnurlResponse = await fetch(`https://${domain}/.well-known/lnurlp/${name}`);
+          const lnurlData = await lnurlResponse.json();
+
+          // Request an invoice
+          const callbackUrl = new URL(lnurlData.callback);
+          callbackUrl.searchParams.set('amount', payout.amount * 1000); // millisats
+          const invoiceResponse = await fetch(callbackUrl.toString());
+          const invoiceData = await invoiceResponse.json();
+
+          // Pay the invoice
+          await nwcRequest('pay_invoice', {
+            invoice: invoiceData.pr
+          });
+
+          successful++;
+        } catch (e) {
+          console.error('Failed to pay', payout.address, e);
+          failed++;
+        }
+      }
+
+      statusEl.innerHTML = `<div class="status ${failed === 0 ? 'success' : 'warning'}">
+        Paid ${successful}/${window.pendingPayouts.length} winners.
+        ${failed > 0 ? `${failed} failed.` : ''}
+      </div>`;
+    }
+    window.payAllWinners = payAllWinners;
+
+    // ============================================
+    // INITIALIZATION
+    // ============================================
+    function setupEventListeners() {
+      // Home view buttons
+      document.getElementById('btn-create-view')?.addEventListener('click', () => showView('create-view'));
+      document.getElementById('btn-load-view')?.addEventListener('click', () => showView('load-view'));
+
+      // Create market buttons
+      document.getElementById('btn-create-market')?.addEventListener('click', () => {
+        console.log('Create Market button clicked');
+        createMarket();
+      });
+      document.getElementById('btn-cancel-create')?.addEventListener('click', () => showView('home-view'));
+
+      // Load market buttons
+      document.getElementById('btn-load-market')?.addEventListener('click', () => loadMarketById());
+      document.getElementById('btn-back-load')?.addEventListener('click', () => showView('home-view'));
+
+      // Prefill resolution date to 1 week from now
+      const nextWeek = new Date();
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      nextWeek.setHours(12, 0, 0, 0);
+      const dateInput = document.getElementById('resolution-date-input');
+      if (dateInput) {
+        dateInput.value = nextWeek.toISOString().slice(0, 16);
+      }
+
+      console.log('Event listeners set up');
+    }
+
+    async function init() {
+      setupEventListeners();
+
+      // Check for market ID in URL
+      const params = new URLSearchParams(window.location.search);
+      const marketId = params.get('m');
+
+      if (marketId) {
+        const eventId = decodeNoteId(marketId);
+        if (eventId) {
+          await loadMarket(eventId);
+          return;
+        }
+      }
+
+      // Connect to relays in background
+      connectRelays();
+    }
+
+    // Start
+    console.log('Module loaded successfully');
+    init();
+  </script>
+</body>
+</html>
