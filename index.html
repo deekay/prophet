@@ -247,6 +247,10 @@
       <input type="number" id="max-bet-input" placeholder="10000" />
 
       <button id="btn-create-market">Create Market</button>
+      <div id="create-status" class="hidden" style="text-align: center; padding: 20px;">
+        <div class="loader"></div>
+        <p id="create-status-text" style="margin-top: 12px; color: #888;">Publishing to Nostr relays...</p>
+      </div>
       <button id="btn-cancel-create" class="secondary">Cancel</button>
     </div>
 
@@ -274,6 +278,10 @@
     <label>Market URL or ID</label>
     <input type="text" id="market-id-input" placeholder="https://...?m=note1... or note1..." />
     <button id="btn-load-market">Load Market</button>
+    <div id="load-status" class="hidden" style="text-align: center; padding: 20px;">
+      <div class="loader"></div>
+      <p style="margin-top: 12px; color: #888;">Fetching from Nostr relays...</p>
+    </div>
     <button id="btn-back-load" class="secondary">Back</button>
   </div>
 
@@ -602,6 +610,20 @@
     // ============================================
     // CREATE MARKET
     // ============================================
+    function setCreateStatus(show, text = 'Publishing to Nostr relays...') {
+      const btn = document.getElementById('btn-create-market');
+      const status = document.getElementById('create-status');
+      const statusText = document.getElementById('create-status-text');
+      if (show) {
+        btn.classList.add('hidden');
+        status.classList.remove('hidden');
+        statusText.textContent = text;
+      } else {
+        btn.classList.remove('hidden');
+        status.classList.add('hidden');
+      }
+    }
+
     async function createMarket() {
       console.log('Creating market...');
       try {
@@ -617,6 +639,7 @@
         return;
       }
 
+      setCreateStatus(true, 'Connecting to relays...');
       creatorNwcString = nwcString;
 
       // Generate keypair for this market
@@ -630,10 +653,12 @@
         console.log('Connecting to relays...');
         const connected = await connectRelays();
         if (!connected) {
+          setCreateStatus(false);
           alert('Failed to connect to relays');
           return;
         }
       }
+      setCreateStatus(true, 'Publishing to Nostr relays...');
 
       // Create market event
       const marketContent = {
@@ -663,10 +688,12 @@
       console.log('Publishing event...');
       const published = await publishEvent(signedEvent);
       if (!published) {
+        setCreateStatus(false);
         alert('Failed to publish market');
         return;
       }
       console.log('Event published!');
+      setCreateStatus(false);
 
       // Store NWC and SK in localStorage for this market
       localStorage.setItem(`nwc_${signedEvent.id}`, nwcString);
@@ -688,6 +715,7 @@
 
       } catch (e) {
         console.error('Error creating market:', e);
+        setCreateStatus(false);
         alert('Error creating market: ' + e.message);
       }
     }
@@ -731,7 +759,17 @@
         alert('Invalid market URL or ID');
         return;
       }
-      await loadMarket(eventId);
+
+      // Show loading state
+      document.getElementById('btn-load-market').classList.add('hidden');
+      document.getElementById('load-status').classList.remove('hidden');
+
+      try {
+        await loadMarket(eventId);
+      } finally {
+        document.getElementById('btn-load-market').classList.remove('hidden');
+        document.getElementById('load-status').classList.add('hidden');
+      }
     }
     window.loadMarketById = loadMarketById;
 
