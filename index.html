@@ -338,6 +338,7 @@
         <button onclick="copyInvoice()">Copy Invoice</button>
         <button class="secondary" onclick="cancelBet()">Cancel</button>
         <p id="payment-status" style="text-align: center;">Waiting for payment...</p>
+        <button id="btn-manual-paid" class="secondary" style="margin-top: 16px; display: none;" onclick="manualConfirmPayment()">I've Paid (manual confirm)</button>
       </div>
 
       <div id="bet-confirmed" class="hidden">
@@ -396,7 +397,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v3</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v4</p>
   </footer>
 
   <!-- Scripts -->
@@ -1026,6 +1027,8 @@
         document.getElementById('payment-status').textContent = 'Waiting for payment...';
 
         // Start checking for payment
+        paymentCheckFailures = 0;
+        document.getElementById('btn-manual-paid').style.display = 'none';
         invoiceCheckInterval = setInterval(checkPayment, 3000);
 
       } catch (e) {
@@ -1035,6 +1038,8 @@
       }
     }
     window.placeBet = placeBet;
+
+    let paymentCheckFailures = 0;
 
     async function checkPayment() {
       if (!pendingInvoice) return;
@@ -1056,11 +1061,26 @@
         } else {
           console.log('Payment not yet confirmed, state:', result.state || result.status || 'unknown');
         }
+        paymentCheckFailures = 0; // Reset on success
       } catch (e) {
         console.error('Failed to check payment:', e);
-        document.getElementById('payment-status').textContent = 'Checking payment... (error: ' + e.message + ')';
+        paymentCheckFailures++;
+        document.getElementById('payment-status').textContent = 'Checking payment... (attempt ' + paymentCheckFailures + ')';
+
+        // Show manual confirm button after 3 failures
+        if (paymentCheckFailures >= 3) {
+          document.getElementById('btn-manual-paid').style.display = 'block';
+          document.getElementById('payment-status').textContent = 'Auto-verification unavailable. Click below after paying.';
+        }
       }
     }
+
+    async function manualConfirmPayment() {
+      if (!pendingInvoice) return;
+      clearInterval(invoiceCheckInterval);
+      await recordBet();
+    }
+    window.manualConfirmPayment = manualConfirmPayment;
 
     async function recordBet() {
       if (!pendingInvoice) return;
