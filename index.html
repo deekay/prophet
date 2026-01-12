@@ -335,17 +335,23 @@
         <div class="qr-container" id="qr-container">
         </div>
         <div class="invoice-text" id="invoice-text"></div>
+        <div id="webln-pay-section">
+          <button id="btn-webln-pay" onclick="payWithWebLN()">Pay with Wallet</button>
+          <p style="color: #666; font-size: 13px; margin-top: 4px;">Works with Alby and other WebLN wallets</p>
+        </div>
+
+        <div style="margin-top: 12px; text-align: center; color: #555;">— or pay manually —</div>
+
         <button onclick="copyInvoice()">Copy Invoice</button>
         <button class="secondary" onclick="cancelBet()">Cancel</button>
 
-        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #333;">
-          <label>After paying, paste your payment preimage:</label>
+        <div id="manual-preimage-section" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #333;">
+          <label>After paying manually, paste your payment preimage:</label>
           <input type="text" id="preimage-input" placeholder="Preimage from your wallet (hex)" />
           <button onclick="verifyPreimage()">Verify Payment</button>
-          <p id="payment-status" style="text-align: center; margin-top: 8px; color: #888; font-size: 13px;">
-            Find this in your wallet's payment details after paying
-          </p>
         </div>
+
+        <p id="payment-status" style="text-align: center; margin-top: 12px; color: #888; font-size: 13px;"></p>
       </div>
 
       <div id="bet-confirmed" class="hidden">
@@ -404,7 +410,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v5</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v6</p>
   </footer>
 
   <!-- Scripts -->
@@ -1042,6 +1048,59 @@
       }
     }
     window.placeBet = placeBet;
+
+    async function payWithWebLN() {
+      if (!pendingInvoice) {
+        alert('No pending invoice');
+        return;
+      }
+
+      // Check for WebLN
+      if (typeof window.webln === 'undefined') {
+        alert('No WebLN wallet detected. Install Alby or another WebLN-compatible wallet, or pay manually and paste the preimage.');
+        return;
+      }
+
+      try {
+        document.getElementById('payment-status').textContent = 'Connecting to wallet...';
+
+        // Enable WebLN
+        await window.webln.enable();
+
+        document.getElementById('payment-status').textContent = 'Requesting payment...';
+
+        // Send payment - this returns the preimage!
+        const response = await window.webln.sendPayment(pendingInvoice.paymentRequest);
+
+        console.log('WebLN payment response:', response);
+
+        if (response.preimage) {
+          document.getElementById('payment-status').textContent = 'Payment successful! Verifying...';
+          pendingInvoice.preimage = response.preimage;
+
+          // Verify the preimage matches
+          const preimageBytes = hexToBytes(response.preimage);
+          const hashBuffer = await crypto.subtle.digest('SHA-256', preimageBytes);
+          const hashHex = Array.from(new Uint8Array(hashBuffer))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+
+          if (hashHex === pendingInvoice.paymentHash) {
+            console.log('Preimage verified!');
+            await recordBet();
+          } else {
+            console.error('Preimage mismatch:', hashHex, '!==', pendingInvoice.paymentHash);
+            document.getElementById('payment-status').textContent = 'Payment received but verification failed. Contact support.';
+          }
+        } else {
+          document.getElementById('payment-status').textContent = 'Payment sent but no preimage returned. Paste it manually below.';
+        }
+      } catch (e) {
+        console.error('WebLN payment error:', e);
+        document.getElementById('payment-status').textContent = 'Payment failed: ' + (e.message || 'Unknown error');
+      }
+    }
+    window.payWithWebLN = payWithWebLN;
 
     async function verifyPreimage() {
       if (!pendingInvoice) {
