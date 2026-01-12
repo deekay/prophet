@@ -337,8 +337,15 @@
         <div class="invoice-text" id="invoice-text"></div>
         <button onclick="copyInvoice()">Copy Invoice</button>
         <button class="secondary" onclick="cancelBet()">Cancel</button>
-        <p id="payment-status" style="text-align: center;">Waiting for payment...</p>
-        <button id="btn-manual-paid" class="secondary" style="margin-top: 16px; display: none;" onclick="manualConfirmPayment()">I've Paid (manual confirm)</button>
+
+        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #333;">
+          <label>After paying, paste your payment preimage:</label>
+          <input type="text" id="preimage-input" placeholder="Preimage from your wallet (hex)" />
+          <button onclick="verifyPreimage()">Verify Payment</button>
+          <p id="payment-status" style="text-align: center; margin-top: 8px; color: #888; font-size: 13px;">
+            Find this in your wallet's payment details after paying
+          </p>
+        </div>
       </div>
 
       <div id="bet-confirmed" class="hidden">
@@ -397,7 +404,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v4</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v5</p>
   </footer>
 
   <!-- Scripts -->
@@ -427,7 +434,6 @@
     let creatorNsec = null;
     let creatorNwcString = null;
     let pendingInvoice = null;
-    let invoiceCheckInterval = null;
 
     // ============================================
     // VIEW MANAGEMENT
@@ -1024,12 +1030,10 @@
           width: 200,
           height: 200
         });
-        document.getElementById('payment-status').textContent = 'Waiting for payment...';
+        document.getElementById('payment-status').textContent = 'Find the preimage in your wallet after paying';
 
-        // Start checking for payment
-        paymentCheckFailures = 0;
-        document.getElementById('btn-manual-paid').style.display = 'none';
-        invoiceCheckInterval = setInterval(checkPayment, 3000);
+        // Clear preimage input for new bet
+        document.getElementById('preimage-input').value = '';
 
       } catch (e) {
         console.error('Failed to create invoice', e);
@@ -1039,48 +1043,49 @@
     }
     window.placeBet = placeBet;
 
-    let paymentCheckFailures = 0;
+    async function verifyPreimage() {
+      if (!pendingInvoice) {
+        alert('No pending invoice');
+        return;
+      }
 
-    async function checkPayment() {
-      if (!pendingInvoice) return;
+      const preimageHex = document.getElementById('preimage-input').value.trim();
+      if (!preimageHex || preimageHex.length !== 64) {
+        alert('Please enter a valid preimage (64 hex characters)');
+        return;
+      }
+
+      document.getElementById('payment-status').textContent = 'Verifying...';
 
       try {
-        console.log('Checking payment for hash:', pendingInvoice.paymentHash);
-        const result = await nwcRequest('lookup_invoice', {
-          payment_hash: pendingInvoice.paymentHash
-        });
-        console.log('lookup_invoice result:', JSON.stringify(result));
+        // Convert preimage hex to bytes
+        const preimageBytes = hexToBytes(preimageHex);
 
-        // Different NWC implementations use different field names
-        const isPaid = result.settled || result.settled_at || result.preimage || result.state === 'SETTLED';
+        // Compute SHA256 of preimage
+        const hashBuffer = await crypto.subtle.digest('SHA-256', preimageBytes);
+        const hashHex = Array.from(new Uint8Array(hashBuffer))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('');
 
-        if (isPaid) {
-          console.log('Payment confirmed!');
-          clearInterval(invoiceCheckInterval);
+        console.log('Preimage:', preimageHex);
+        console.log('Computed hash:', hashHex);
+        console.log('Expected hash:', pendingInvoice.paymentHash);
+
+        if (hashHex === pendingInvoice.paymentHash) {
+          console.log('Payment verified!');
+          document.getElementById('payment-status').textContent = 'Payment verified!';
+          pendingInvoice.preimage = preimageHex;
           await recordBet();
         } else {
-          console.log('Payment not yet confirmed, state:', result.state || result.status || 'unknown');
+          document.getElementById('payment-status').textContent = 'Invalid preimage - does not match invoice';
+          alert('Invalid preimage. Make sure you paid the correct invoice and copied the preimage correctly.');
         }
-        paymentCheckFailures = 0; // Reset on success
       } catch (e) {
-        console.error('Failed to check payment:', e);
-        paymentCheckFailures++;
-        document.getElementById('payment-status').textContent = 'Checking payment... (attempt ' + paymentCheckFailures + ')';
-
-        // Show manual confirm button after 3 failures
-        if (paymentCheckFailures >= 3) {
-          document.getElementById('btn-manual-paid').style.display = 'block';
-          document.getElementById('payment-status').textContent = 'Auto-verification unavailable. Click below after paying.';
-        }
+        console.error('Verification error:', e);
+        document.getElementById('payment-status').textContent = 'Verification error: ' + e.message;
       }
     }
-
-    async function manualConfirmPayment() {
-      if (!pendingInvoice) return;
-      clearInterval(invoiceCheckInterval);
-      await recordBet();
-    }
-    window.manualConfirmPayment = manualConfirmPayment;
+    window.verifyPreimage = verifyPreimage;
 
     async function recordBet() {
       if (!pendingInvoice) return;
@@ -1114,21 +1119,23 @@
           outcome: pendingInvoice.outcome,
           amount_sats: pendingInvoice.amount,
           payout_address: pendingInvoice.payoutAddress,
-          payment_hash: pendingInvoice.paymentHash
+          payment_hash: pendingInvoice.paymentHash,
+          preimage: pendingInvoice.preimage
         });
         renderMarket();
         pendingInvoice = null;
         return;
       }
 
-      // Create bet event
+      // Create bet event with preimage as proof of payment
       const betContent = {
         type: 'bet',
         market_id: currentMarket.id,
         outcome: pendingInvoice.outcome,
         amount_sats: pendingInvoice.amount,
         payout_address: pendingInvoice.payoutAddress,
-        payment_hash: pendingInvoice.paymentHash
+        payment_hash: pendingInvoice.paymentHash,
+        preimage: pendingInvoice.preimage
       };
 
       const event = {
@@ -1156,7 +1163,6 @@
     }
 
     function cancelBet() {
-      clearInterval(invoiceCheckInterval);
       pendingInvoice = null;
       closeNwcRelay();
       resetBetForm();
