@@ -1002,16 +1002,25 @@
       if (!pendingInvoice) return;
 
       try {
+        console.log('Checking payment for hash:', pendingInvoice.paymentHash);
         const result = await nwcRequest('lookup_invoice', {
           payment_hash: pendingInvoice.paymentHash
         });
+        console.log('lookup_invoice result:', JSON.stringify(result));
 
-        if (result.settled) {
+        // Different NWC implementations use different field names
+        const isPaid = result.settled || result.settled_at || result.preimage || result.state === 'SETTLED';
+
+        if (isPaid) {
+          console.log('Payment confirmed!');
           clearInterval(invoiceCheckInterval);
           await recordBet();
+        } else {
+          console.log('Payment not yet confirmed, state:', result.state || result.status || 'unknown');
         }
       } catch (e) {
-        console.error('Failed to check payment', e);
+        console.error('Failed to check payment:', e);
+        document.getElementById('payment-status').textContent = 'Checking payment... (error: ' + e.message + ')';
       }
     }
 
