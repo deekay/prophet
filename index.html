@@ -319,6 +319,7 @@
       <div id="bet-form">
         <label>Your Lightning Address (for payout)</label>
         <input type="text" id="payout-address-input" placeholder="you@walletofsatoshi.com" />
+        <p style="color: #666; font-size: 13px; margin-top: 4px;">Leave blank to claim winnings manually with an invoice later</p>
 
         <label>Bet Amount (sats)</label>
         <input type="number" id="bet-amount-input" placeholder="500" />
@@ -936,8 +937,9 @@
       const payoutAddress = document.getElementById('payout-address-input').value.trim();
       const amount = parseInt(document.getElementById('bet-amount-input').value);
 
-      if (!payoutAddress || !payoutAddress.includes('@')) {
-        alert('Please enter a valid Lightning Address');
+      // Allow empty (manual claim) or valid Lightning Address
+      if (payoutAddress && !payoutAddress.includes('@')) {
+        alert('Please enter a valid Lightning Address (user@domain.com) or leave blank for manual claim');
         return;
       }
       if (!amount || amount < 1) {
