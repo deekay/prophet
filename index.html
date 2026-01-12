@@ -396,7 +396,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v2</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v3</p>
   </footer>
 
   <!-- Scripts -->
@@ -543,6 +543,44 @@
       }
     }
 
+    // Cached NWC relay connection
+    let nwcRelay = null;
+    let nwcRelayConnecting = false;
+
+    async function getNwcRelay() {
+      const nwc = parseNwcString(creatorNwcString);
+      if (!nwc) throw new Error('Invalid NWC connection');
+
+      // Return existing connection if valid
+      if (nwcRelay && nwcRelay.connected) {
+        return nwcRelay;
+      }
+
+      // Wait if already connecting
+      if (nwcRelayConnecting) {
+        await new Promise(r => setTimeout(r, 500));
+        return getNwcRelay();
+      }
+
+      // Create new connection
+      nwcRelayConnecting = true;
+      try {
+        console.log('Connecting to NWC relay:', nwc.relay);
+        nwcRelay = await Relay.connect(nwc.relay);
+        console.log('Connected to NWC relay');
+        return nwcRelay;
+      } finally {
+        nwcRelayConnecting = false;
+      }
+    }
+
+    function closeNwcRelay() {
+      if (nwcRelay) {
+        try { nwcRelay.close(); } catch (e) {}
+        nwcRelay = null;
+      }
+    }
+
     async function nwcRequest(method, params = {}) {
       console.log('NWC request:', method, params);
       const nwc = parseNwcString(creatorNwcString);
@@ -551,8 +589,8 @@
       // NWC secret is hex-encoded
       const secretKey = hexToBytes(nwc.secret);
 
-      // Connect to NWC relay
-      const relay = await Relay.connect(nwc.relay);
+      // Get or create relay connection
+      const relay = await getNwcRelay();
 
       // Create request
       const request = {
@@ -576,7 +614,6 @@
       return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
           sub.close();
-          relay.close();
           reject(new Error('NWC request timeout'));
         }, 30000);
 
@@ -591,7 +628,7 @@
               const response = JSON.parse(decrypted);
               clearTimeout(timeout);
               sub.close();
-              relay.close();
+              // Don't close relay - keep it for future requests
               if (response.error) {
                 reject(new Error(response.error.message || 'NWC error'));
               } else {
@@ -1095,11 +1132,13 @@
       currentBets.push({ ...betContent, id: signedEvent.id });
       renderMarket();
       pendingInvoice = null;
+      closeNwcRelay();
     }
 
     function cancelBet() {
       clearInterval(invoiceCheckInterval);
       pendingInvoice = null;
+      closeNwcRelay();
       resetBetForm();
     }
     window.cancelBet = cancelBet;
