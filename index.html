@@ -322,6 +322,14 @@
     </div>
 
     <div id="betting-open">
+      <div id="pending-bet-recovery" class="hidden" style="background: #2a1a1a; border: 1px solid #ff6b6b; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+        <p style="color: #ff6b6b; margin: 0 0 8px 0; font-weight: bold;">Unverified bet found!</p>
+        <p style="color: #ccc; margin: 0 0 12px 0; font-size: 13px;">You have a pending bet of <strong id="pending-bet-amount"></strong> sats on <strong id="pending-bet-outcome"></strong>. If you already paid, verify below to record your bet.</p>
+        <input type="text" id="recovery-preimage-input" placeholder="Preimage from your wallet (hex)" />
+        <button onclick="verifyRecoveryPreimage()">Verify Payment</button>
+        <button class="secondary" onclick="dismissPendingBet()">Dismiss (didn't pay)</button>
+      </div>
+
       <div id="bet-form">
         <label>Your Lightning Address (for payout)</label>
         <input type="text" id="payout-address-input" placeholder="you@walletofsatoshi.com" />
@@ -343,18 +351,24 @@
         <div class="invoice-text" id="invoice-text"></div>
         <div id="webln-pay-section">
           <button id="btn-webln-pay" onclick="payWithWebLN()">Pay with Wallet</button>
-          <p style="color: #666; font-size: 13px; margin-top: 4px;">Works with Alby and other WebLN wallets</p>
+          <p style="color: #666; font-size: 13px; margin-top: 4px;">Works with Alby and other WebLN wallets (recommended)</p>
         </div>
 
-        <div style="margin-top: 12px; text-align: center; color: #555;">— or pay manually —</div>
+        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #333;">
+          <div style="margin-bottom: 12px; text-align: center; color: #555;">— or pay manually —</div>
+          <button onclick="copyInvoice()">Copy Invoice</button>
 
-        <button onclick="copyInvoice()">Copy Invoice</button>
-        <button class="secondary" onclick="cancelBet()">Cancel</button>
+          <div id="manual-preimage-section" style="margin-top: 16px; background: #2a1a1a; border: 1px solid #ff6b6b; border-radius: 8px; padding: 16px;">
+            <p style="color: #ff6b6b; margin: 0 0 12px 0; font-weight: bold;">After paying, you MUST verify to record your bet:</p>
+            <p style="color: #ccc; margin: 0 0 12px 0; font-size: 13px;">Find the payment preimage in your wallet's transaction details and paste it below. Without this, your bet will NOT be recorded.</p>
+            <input type="text" id="preimage-input" placeholder="Preimage from your wallet (hex)" />
+            <button onclick="verifyPreimage()">Verify Payment</button>
+          </div>
+        </div>
 
-        <div id="manual-preimage-section" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #333;">
-          <label>After paying manually, paste your payment preimage:</label>
-          <input type="text" id="preimage-input" placeholder="Preimage from your wallet (hex)" />
-          <button onclick="verifyPreimage()">Verify Payment</button>
+        <div style="margin-top: 16px; padding: 12px; background: #1a1a2e; border-radius: 8px;">
+          <p style="color: #ff9800; margin: 0 0 8px 0; font-size: 13px;"><strong>Warning:</strong> If you paid but don't verify, your bet won't be recorded and you'll lose your sats!</p>
+          <button class="secondary" onclick="cancelBet()">Cancel (I haven't paid)</button>
         </div>
 
         <p id="payment-status" style="text-align: center; margin-top: 12px; color: #888; font-size: 13px;"></p>
@@ -416,7 +430,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v13</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v14</p>
   </footer>
 
   <!-- Scripts -->
@@ -1016,6 +1030,8 @@
         document.getElementById('betting-open').classList.remove('hidden');
         document.getElementById('betting-closed').classList.add('hidden');
         document.getElementById('market-resolved').classList.add('hidden');
+        // Check for any pending unverified bets
+        checkForPendingBet();
       }
     }
 
@@ -1063,8 +1079,13 @@
           paymentHash: result.payment_hash,
           outcome,
           amount,
-          payoutAddress
+          payoutAddress,
+          marketId: currentMarket.id,
+          createdAt: Date.now()
         };
+
+        // Save to localStorage in case user navigates away
+        localStorage.setItem(`pending_bet_${currentMarket.id}`, JSON.stringify(pendingInvoice));
 
         // Show QR code
         document.getElementById('invoice-text').textContent = result.invoice;
@@ -1256,11 +1277,18 @@
 
       currentBets.push({ ...betContent, id: signedEvent.id });
       renderMarket();
+      // Clear pending bet from localStorage
+      if (pendingInvoice && pendingInvoice.marketId) {
+        localStorage.removeItem(`pending_bet_${pendingInvoice.marketId}`);
+      }
       pendingInvoice = null;
       closeNwcRelay();
     }
 
     function cancelBet() {
+      if (pendingInvoice && pendingInvoice.marketId) {
+        localStorage.removeItem(`pending_bet_${pendingInvoice.marketId}`);
+      }
       pendingInvoice = null;
       closeNwcRelay();
       resetBetForm();
@@ -1279,6 +1307,72 @@
       alert('Copied!');
     }
     window.copyInvoice = copyInvoice;
+
+    // Check for pending bet when loading a market
+    function checkForPendingBet() {
+      if (!currentMarket) return;
+
+      const savedPendingBet = localStorage.getItem(`pending_bet_${currentMarket.id}`);
+      if (savedPendingBet) {
+        try {
+          const pending = JSON.parse(savedPendingBet);
+          // Check if invoice is less than 1 hour old (invoices typically expire in 1 hour)
+          const ageMinutes = (Date.now() - pending.createdAt) / 1000 / 60;
+          if (ageMinutes < 60) {
+            pendingInvoice = pending;
+            document.getElementById('pending-bet-amount').textContent = pending.amount;
+            document.getElementById('pending-bet-outcome').textContent = pending.outcome.toUpperCase();
+            document.getElementById('pending-bet-recovery').classList.remove('hidden');
+            document.getElementById('bet-form').classList.add('hidden');
+          } else {
+            // Invoice expired, clear it
+            localStorage.removeItem(`pending_bet_${currentMarket.id}`);
+          }
+        } catch (e) {
+          console.error('Failed to parse pending bet:', e);
+          localStorage.removeItem(`pending_bet_${currentMarket.id}`);
+        }
+      }
+    }
+
+    async function verifyRecoveryPreimage() {
+      const preimageHex = document.getElementById('recovery-preimage-input').value.trim();
+      if (!preimageHex || !pendingInvoice) {
+        alert('Please enter the preimage');
+        return;
+      }
+
+      try {
+        const preimageBytes = hexToBytes(preimageHex);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', preimageBytes);
+        const hashHex = Array.from(new Uint8Array(hashBuffer))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('');
+
+        if (hashHex === pendingInvoice.paymentHash) {
+          pendingInvoice.preimage = preimageHex;
+          await recordBet();
+          document.getElementById('pending-bet-recovery').classList.add('hidden');
+          document.getElementById('bet-form').classList.remove('hidden');
+        } else {
+          alert('Preimage does not match. Please check and try again.');
+        }
+      } catch (e) {
+        console.error('Error verifying preimage:', e);
+        alert('Invalid preimage format');
+      }
+    }
+    window.verifyRecoveryPreimage = verifyRecoveryPreimage;
+
+    function dismissPendingBet() {
+      if (currentMarket) {
+        localStorage.removeItem(`pending_bet_${currentMarket.id}`);
+      }
+      pendingInvoice = null;
+      document.getElementById('pending-bet-recovery').classList.add('hidden');
+      document.getElementById('bet-form').classList.remove('hidden');
+    }
+    window.dismissPendingBet = dismissPendingBet;
 
     // ============================================
     // RESOLUTION
