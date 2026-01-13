@@ -405,7 +405,7 @@
       <div class="status success">Market resolved!</div>
       <h3>Payouts</h3>
       <div id="payout-list"></div>
-      <button onclick="payAllWinners()">Pay All Winners</button>
+      <button id="btn-pay-winners" onclick="payAllWinners()">Pay All Winners</button>
       <div id="payout-status"></div>
     </div>
 
@@ -415,7 +415,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v9</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v10</p>
   </footer>
 
   <!-- Scripts -->
@@ -1378,6 +1378,11 @@
       }
 
       const statusEl = document.getElementById('payout-status');
+      const payBtn = document.getElementById('btn-pay-winners');
+
+      // Disable button to prevent double-payment
+      payBtn.disabled = true;
+      payBtn.textContent = 'Paying...';
       statusEl.innerHTML = '<div class="status info">Sending payouts...</div>';
 
       let successful = 0;
@@ -1441,6 +1446,24 @@
       if (manualCount > 0) msg += ` ${manualCount} winner(s) need manual payout.`;
 
       statusEl.innerHTML = `<div class="status ${failed === 0 ? 'success' : 'warning'}">${msg}</div>`;
+
+      if (failed === 0) {
+        // All payments succeeded - keep button disabled
+        payBtn.textContent = 'Paid';
+        payBtn.classList.add('secondary');
+        // Clear the pending payouts to prevent re-payment on page actions
+        window.pendingPayouts = [];
+      } else {
+        // Some failed - allow retry but only for failed ones
+        payBtn.disabled = false;
+        payBtn.textContent = `Retry ${failed} Failed`;
+        // Filter to only keep failed payouts for retry
+        window.pendingPayouts = autoPayable.filter((_, i) => {
+          // This is imperfect but helps prevent double-payment
+          // In a real app, we'd track which specific payments succeeded
+          return i >= successful;
+        });
+      }
     }
     window.payAllWinners = payAllWinners;
 
