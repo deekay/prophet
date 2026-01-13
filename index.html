@@ -430,7 +430,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v16</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v17</p>
   </footer>
 
   <!-- Scripts -->
@@ -989,13 +989,18 @@
       document.getElementById('yes-pool').textContent = `${yesPool.toLocaleString()} sats`;
       document.getElementById('no-pool').textContent = `${noPool.toLocaleString()} sats`;
 
-      // Calculate payouts: winners get their pool back + losers' pool minus 5% fee
-      // Fee is only charged on losers' pool, so winners never get less than 1.0x
+      // Calculate payouts: 5% fee on total action, but winners always get at least 1.0x
+      // Fee is capped so it never exceeds the losing pool (winners can't lose money)
       if (totalPool > 0) {
-        // If YES wins: they get yesPool + (noPool * 0.95)
-        const yesWinPayout = yesPool + (noPool * (1 - FEE_PERCENT / 100));
-        // If NO wins: they get noPool + (yesPool * 0.95)
-        const noWinPayout = noPool + (yesPool * (1 - FEE_PERCENT / 100));
+        // If YES wins
+        const yesFeeTarget = Math.floor(totalPool * FEE_PERCENT / 100);
+        const yesActualFee = Math.min(yesFeeTarget, noPool); // Cap fee at losers' pool
+        const yesWinPayout = totalPool - yesActualFee;
+
+        // If NO wins
+        const noFeeTarget = Math.floor(totalPool * FEE_PERCENT / 100);
+        const noActualFee = Math.min(noFeeTarget, yesPool);
+        const noWinPayout = totalPool - noActualFee;
 
         const yesPayout = yesPool > 0 ? (yesWinPayout / yesPool).toFixed(2) + 'x' : '-';
         const noPayout = noPool > 0 ? (noWinPayout / noPool).toFixed(2) + 'x' : '-';
@@ -1428,14 +1433,15 @@
       currentResolution = resolutionContent;
 
       // Calculate payouts
-      // Fee is only charged on LOSERS' pool, so winners always get at least 1.0x
+      // Fee is 5% of total action, but capped so winners always get at least 1.0x
       const winners = currentBets.filter(b => b.outcome === outcome);
       const losers = currentBets.filter(b => b.outcome !== outcome);
       const winningPool = winners.reduce((sum, b) => sum + b.amount_sats, 0);
       const losingPool = losers.reduce((sum, b) => sum + b.amount_sats, 0);
       const totalPool = winningPool + losingPool;
-      const feeAmount = Math.floor(losingPool * FEE_PERCENT / 100); // Fee only on losers
-      const amountToWinners = winningPool + losingPool - feeAmount;
+      const feeTarget = Math.floor(totalPool * FEE_PERCENT / 100);
+      const feeAmount = Math.min(feeTarget, losingPool); // Cap fee so winners get at least 1.0x
+      const amountToWinners = totalPool - feeAmount;
 
       console.log('=== PAYOUT CALCULATION ===');
       console.log('Total bets:', currentBets.length);
@@ -1443,7 +1449,8 @@
       console.log('Winning pool:', winningPool, 'sats');
       console.log('Losing pool:', losingPool, 'sats');
       console.log('Total pool:', totalPool, 'sats');
-      console.log('Fee (5% of losers):', feeAmount, 'sats');
+      console.log('Fee target (5% of total):', feeTarget, 'sats');
+      console.log('Fee actual (capped at losers):', feeAmount, 'sats');
       console.log('Amount to winners:', amountToWinners, 'sats');
 
       const payouts = winners.map(b => {
@@ -1469,16 +1476,13 @@
         let html = `
           <div style="background: #1a1a2e; padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 13px;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-              <span>Winners' bets (${winners.length}):</span><span>${winningPool.toLocaleString()} sats</span>
+              <span>Total pool:</span><span>${totalPool.toLocaleString()} sats</span>
             </div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-              <span>Losers' bets (${losers.length}):</span><span>+${losingPool.toLocaleString()} sats</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-              <span>Creator fee (5% of losers):</span><span>-${feeAmount.toLocaleString()} sats</span>
+              <span>Creator fee (5%):</span><span>-${feeAmount.toLocaleString()} sats</span>
             </div>
             <div style="display: flex; justify-content: space-between; border-top: 1px solid #333; padding-top: 4px; margin-top: 4px;">
-              <span><strong>To winners:</strong></span><span><strong>${amountToWinners.toLocaleString()} sats</strong></span>
+              <span><strong>To ${winners.length} winner${winners.length !== 1 ? 's' : ''}:</strong></span><span><strong>${amountToWinners.toLocaleString()} sats</strong></span>
             </div>
             <p style="margin: 8px 0 0 0; font-size: 11px; color: #666;">Lightning routing fees may slightly reduce actual payouts.</p>
           </div>
