@@ -441,7 +441,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v19</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v20</p>
   </footer>
 
   <!-- Scripts -->
@@ -1002,10 +1002,13 @@
 
       // Calculate payouts: 5% fee on total action, but winners always get at least 1.0x
       // Fee is capped so it never exceeds the losing pool (winners can't lose money)
+      const yesPayoutEl = document.getElementById('yes-payout');
+      const noPayoutEl = document.getElementById('no-payout');
+
       if (totalPool > 0) {
         // If YES wins
         const yesFeeTarget = Math.floor(totalPool * FEE_PERCENT / 100);
-        const yesActualFee = Math.min(yesFeeTarget, noPool); // Cap fee at losers' pool
+        const yesActualFee = Math.min(yesFeeTarget, noPool);
         const yesWinPayout = totalPool - yesActualFee;
 
         // If NO wins
@@ -1013,13 +1016,33 @@
         const noActualFee = Math.min(noFeeTarget, yesPool);
         const noWinPayout = totalPool - noActualFee;
 
-        const yesPayout = yesPool > 0 ? (yesWinPayout / yesPool).toFixed(2) + 'x' : '-';
-        const noPayout = noPool > 0 ? (noWinPayout / noPool).toFixed(2) + 'x' : '-';
-        document.getElementById('yes-payout').textContent = yesPayout;
-        document.getElementById('no-payout').textContent = noPayout;
+        // Display YES payout
+        if (yesPool > 0 && noPool > 0) {
+          yesPayoutEl.textContent = (yesWinPayout / yesPool).toFixed(2) + 'x';
+        } else if (yesPool > 0 && noPool === 0) {
+          // Show hypothetical: what if equal amount bet on NO?
+          const hypotheticalTotal = yesPool * 2;
+          const hypotheticalFee = Math.floor(hypotheticalTotal * FEE_PERCENT / 100);
+          const hypotheticalPayout = (hypotheticalTotal - hypotheticalFee) / yesPool;
+          yesPayoutEl.innerHTML = `<span style="color: #888; font-size: 14px;">~${hypotheticalPayout.toFixed(1)}x if matched</span>`;
+        } else {
+          yesPayoutEl.innerHTML = `<span style="color: #888; font-size: 14px;">Be first</span>`;
+        }
+
+        // Display NO payout
+        if (noPool > 0 && yesPool > 0) {
+          noPayoutEl.textContent = (noWinPayout / noPool).toFixed(2) + 'x';
+        } else if (noPool > 0 && yesPool === 0) {
+          const hypotheticalTotal = noPool * 2;
+          const hypotheticalFee = Math.floor(hypotheticalTotal * FEE_PERCENT / 100);
+          const hypotheticalPayout = (hypotheticalTotal - hypotheticalFee) / noPool;
+          noPayoutEl.innerHTML = `<span style="color: #888; font-size: 14px;">~${hypotheticalPayout.toFixed(1)}x if matched</span>`;
+        } else {
+          noPayoutEl.innerHTML = `<span style="color: #888; font-size: 14px;">Be first</span>`;
+        }
       } else {
-        document.getElementById('yes-payout').textContent = '-';
-        document.getElementById('no-payout').textContent = '-';
+        yesPayoutEl.innerHTML = `<span style="color: #888; font-size: 14px;">Be first</span>`;
+        noPayoutEl.innerHTML = `<span style="color: #888; font-size: 14px;">Be first</span>`;
       }
 
       // Render bet list
