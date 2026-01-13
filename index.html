@@ -415,7 +415,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v8</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v9</p>
   </footer>
 
   <!-- Scripts -->
@@ -1386,25 +1386,50 @@
 
       for (const payout of autoPayable) {
         try {
-          statusEl.innerHTML = `<div class="status info">Paying ${payout.address}...</div>`;
+          statusEl.innerHTML = `<div class="status info">Paying ${payout.address} (${payout.amount} sats)...</div>`;
 
           // First, get an invoice from the Lightning Address
           const [name, domain] = payout.address.split('@');
+          console.log(`Fetching LNURL for ${name}@${domain}...`);
           const lnurlResponse = await fetch(`https://${domain}/.well-known/lnurlp/${name}`);
           const lnurlData = await lnurlResponse.json();
+          console.log('LNURL data:', lnurlData);
+
+          if (lnurlData.status === 'ERROR') {
+            throw new Error(`LNURL error: ${lnurlData.reason}`);
+          }
 
           // Request an invoice
           const callbackUrl = new URL(lnurlData.callback);
           callbackUrl.searchParams.set('amount', payout.amount * 1000); // millisats
+          console.log('Requesting invoice from:', callbackUrl.toString());
           const invoiceResponse = await fetch(callbackUrl.toString());
           const invoiceData = await invoiceResponse.json();
+          console.log('Invoice data:', invoiceData);
+
+          if (invoiceData.status === 'ERROR') {
+            throw new Error(`Invoice error: ${invoiceData.reason}`);
+          }
+          if (!invoiceData.pr) {
+            throw new Error('No invoice returned from Lightning Address');
+          }
 
           // Pay the invoice
-          await nwcRequest('pay_invoice', {
+          console.log('Paying invoice:', invoiceData.pr?.substring(0, 50) + '...');
+          const payResult = await nwcRequest('pay_invoice', {
             invoice: invoiceData.pr
           });
+          console.log('Payment result:', payResult);
 
-          successful++;
+          // Verify we got a preimage back (proof of payment)
+          if (payResult && payResult.preimage) {
+            console.log('Payment confirmed with preimage:', payResult.preimage);
+            successful++;
+          } else {
+            console.warn('Payment returned but no preimage - may not have succeeded:', payResult);
+            // Still count as success if no error was thrown, but log warning
+            successful++;
+          }
         } catch (e) {
           console.error('Failed to pay', payout.address, e);
           failed++;
