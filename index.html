@@ -430,7 +430,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v17</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v18</p>
   </footer>
 
   <!-- Scripts -->
@@ -1107,10 +1107,13 @@
           width: 200,
           height: 200
         });
-        document.getElementById('payment-status').textContent = 'Find the preimage in your wallet after paying';
+        document.getElementById('payment-status').textContent = 'Waiting for payment...';
 
         // Clear preimage input for new bet
         document.getElementById('preimage-input').value = '';
+
+        // Start polling for payment via lookup_invoice
+        startPaymentPolling();
 
       } catch (e) {
         console.error('Failed to create invoice', e);
@@ -1119,6 +1122,100 @@
       }
     }
     window.placeBet = placeBet;
+
+    let pollingInterval = null;
+    let pollingAttempts = 0;
+    const MAX_POLLING_ATTEMPTS = 60; // 5 minutes at 5 second intervals
+
+    async function startPaymentPolling() {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+      pollingAttempts = 0;
+
+      console.log('=== STARTING PAYMENT POLLING ===');
+      console.log('Payment hash:', pendingInvoice?.paymentHash);
+
+      pollingInterval = setInterval(async () => {
+        if (!pendingInvoice) {
+          console.log('No pending invoice, stopping polling');
+          clearInterval(pollingInterval);
+          return;
+        }
+
+        pollingAttempts++;
+        if (pollingAttempts > MAX_POLLING_ATTEMPTS) {
+          console.log('Max polling attempts reached, stopping');
+          clearInterval(pollingInterval);
+          document.getElementById('payment-status').textContent = 'Polling timeout. Please verify with preimage below.';
+          return;
+        }
+
+        try {
+          console.log(`Polling attempt ${pollingAttempts}/${MAX_POLLING_ATTEMPTS}`);
+          const result = await checkPaymentStatus();
+          if (result) {
+            console.log('Payment confirmed via lookup_invoice!');
+            clearInterval(pollingInterval);
+          }
+        } catch (e) {
+          console.error('Polling error:', e);
+          // Continue polling despite errors
+        }
+      }, 5000); // Poll every 5 seconds
+    }
+
+    async function checkPaymentStatus() {
+      if (!pendingInvoice) return false;
+
+      const request = {
+        method: 'lookup_invoice',
+        params: {
+          payment_hash: pendingInvoice.paymentHash
+        }
+      };
+
+      console.log('=== LOOKUP_INVOICE REQUEST ===');
+      console.log('Request:', JSON.stringify(request, null, 2));
+
+      try {
+        const result = await nwcRequest('lookup_invoice', request.params);
+
+        console.log('=== LOOKUP_INVOICE RESPONSE ===');
+        console.log('Response:', JSON.stringify(result, null, 2));
+
+        // Check if invoice is settled
+        if (result && result.preimage) {
+          console.log('Invoice settled! Preimage:', result.preimage);
+          document.getElementById('payment-status').textContent = 'Payment received! Recording bet...';
+
+          // Verify preimage matches
+          const preimageBytes = hexToBytes(result.preimage);
+          const hashBuffer = await crypto.subtle.digest('SHA-256', preimageBytes);
+          const hashHex = Array.from(new Uint8Array(hashBuffer))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+
+          if (hashHex === pendingInvoice.paymentHash) {
+            pendingInvoice.preimage = result.preimage;
+            await recordBet();
+            return true;
+          } else {
+            console.error('Preimage mismatch!', hashHex, '!==', pendingInvoice.paymentHash);
+          }
+        } else if (result && result.state) {
+          console.log('Invoice state:', result.state);
+          document.getElementById('payment-status').textContent = `Waiting for payment... (${result.state})`;
+        }
+      } catch (e) {
+        console.error('lookup_invoice error:', e.message);
+        // Log the full error for debugging with Primal
+        console.log('=== LOOKUP_INVOICE ERROR ===');
+        console.log('Error details:', e);
+      }
+
+      return false;
+    }
 
     async function payWithWebLN() {
       if (!pendingInvoice) {
@@ -1288,6 +1385,11 @@
 
       currentBets.push({ ...betContent, id: signedEvent.id });
       renderMarket();
+      // Stop polling and clean up
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+      }
       // Clear pending bet from localStorage
       if (pendingInvoice && pendingInvoice.marketId) {
         localStorage.removeItem(`pending_bet_${pendingInvoice.marketId}`);
@@ -1297,6 +1399,11 @@
     }
 
     function cancelBet() {
+      // Stop polling
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+      }
       if (pendingInvoice && pendingInvoice.marketId) {
         localStorage.removeItem(`pending_bet_${pendingInvoice.marketId}`);
       }
