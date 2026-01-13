@@ -416,7 +416,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v12</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v13</p>
   </footer>
 
   <!-- Scripts -->
@@ -1329,14 +1329,30 @@
 
       // Calculate payouts
       const winners = currentBets.filter(b => b.outcome === outcome);
+      const losers = currentBets.filter(b => b.outcome !== outcome);
       const winningPool = winners.reduce((sum, b) => sum + b.amount_sats, 0);
+      const losingPool = losers.reduce((sum, b) => sum + b.amount_sats, 0);
       const totalPool = currentBets.reduce((sum, b) => sum + b.amount_sats, 0);
-      const poolAfterFee = totalPool * (1 - FEE_PERCENT / 100);
+      const feeAmount = Math.floor(totalPool * FEE_PERCENT / 100);
+      const poolAfterFee = totalPool - feeAmount;
 
-      const payouts = winners.map(b => ({
-        address: b.payout_address,
-        amount: Math.floor(b.amount_sats / winningPool * poolAfterFee)
-      }));
+      console.log('=== PAYOUT CALCULATION ===');
+      console.log('Total bets:', currentBets.length);
+      console.log('Winners:', winners.length, 'Losers:', losers.length);
+      console.log('Winning pool:', winningPool, 'sats');
+      console.log('Losing pool:', losingPool, 'sats');
+      console.log('Total pool:', totalPool, 'sats');
+      console.log('Fee (5%):', feeAmount, 'sats');
+      console.log('Pool after fee:', poolAfterFee, 'sats');
+
+      const payouts = winners.map(b => {
+        const payout = Math.floor(b.amount_sats / winningPool * poolAfterFee);
+        console.log(`Winner bet ${b.amount_sats} sats, gets ${payout} sats (profit: ${payout - b.amount_sats})`);
+        return {
+          address: b.payout_address,
+          amount: payout
+        };
+      });
 
       // Show payout section
       document.getElementById('resolve-form').classList.add('hidden');
@@ -1349,7 +1365,22 @@
         const autoPayable = payouts.filter(p => p.address && p.address.includes('@'));
         const manualClaim = payouts.filter(p => !p.address || !p.address.includes('@'));
 
-        let html = '';
+        let html = `
+          <div style="background: #1a1a2e; padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 13px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span>Total pool:</span><span>${totalPool.toLocaleString()} sats</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span>Losing bets (${losers.length}):</span><span>${losingPool.toLocaleString()} sats</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span>Creator fee (5%):</span><span>-${feeAmount.toLocaleString()} sats</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-top: 1px solid #333; padding-top: 4px; margin-top: 4px;">
+              <span><strong>To winners (${winners.length}):</strong></span><span><strong>${poolAfterFee.toLocaleString()} sats</strong></span>
+            </div>
+          </div>
+        `;
         if (autoPayable.length > 0) {
           html += '<h4>Auto-payable (have Lightning Address):</h4>';
           html += autoPayable.map(p => `
