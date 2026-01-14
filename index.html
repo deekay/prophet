@@ -441,7 +441,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v20</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v21</p>
   </footer>
 
   <!-- Scripts -->
@@ -681,11 +681,17 @@
           reject(new Error('NWC request timeout'));
         }, 30000);
 
-        const sub = relay.subscribe([{
+        const filter = {
           kinds: [23195],
           '#e': [signedEvent.id],
+          '#p': [signedEvent.pubkey],
           since: Math.floor(Date.now() / 1000) - 10
-        }], {
+        };
+        console.log('NWC subscribing with filter:', JSON.stringify(filter, null, 2));
+        console.log('Our pubkey (from signed event):', signedEvent.pubkey);
+        console.log('Request event ID:', signedEvent.id);
+
+        const sub = relay.subscribe([filter], {
           async onevent(event) {
             try {
               const decrypted = await nip04Decrypt(secretKey, nwc.pubkey, event.content);
