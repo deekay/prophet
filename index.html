@@ -465,7 +465,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v34</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v35</p>
   </footer>
 
   <!-- Scripts -->
@@ -1489,29 +1489,16 @@
       }
 
       if (!sk) {
-        // Can't sign - just show success anyway (the payment happened)
-        document.getElementById('bet-invoice').classList.add('hidden');
-        document.getElementById('bet-confirmed').classList.remove('hidden');
-
-        // Add to local bets for display
-        currentBets.push({
-          type: 'bet',
-          market_id: currentMarket.id,
-          outcome: pendingInvoice.outcome,
-          amount_sats: pendingInvoice.amount,
-          payout_address: pendingInvoice.payoutAddress,
-          payment_hash: pendingInvoice.paymentHash,
-          preimage: pendingInvoice.preimage,
-          settled_at: pendingInvoice.settled_at
-        });
-        renderMarket();
-        // Clear pending bet from localStorage and hide recovery section
-        if (pendingInvoice && pendingInvoice.marketId) {
-          localStorage.removeItem(`pending_bet_${pendingInvoice.marketId}`);
+        // Generate ephemeral keypair for this bettor to sign their bet
+        // Check if we already have one stored for this market
+        let bettorSk = localStorage.getItem(`bettor_sk_${currentMarket.id}`);
+        if (bettorSk) {
+          sk = hexToBytes(bettorSk);
+        } else {
+          // Generate new ephemeral key for this bettor
+          sk = generateSecretKey();
+          localStorage.setItem(`bettor_sk_${currentMarket.id}`, bytesToHex(sk));
         }
-        document.getElementById('pending-bet-recovery').classList.add('hidden');
-        pendingInvoice = null;
-        return;
       }
 
       // Create bet event with proof of payment (preimage or settled_at)
