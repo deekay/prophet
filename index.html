@@ -462,7 +462,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v30</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v31</p>
   </footer>
 
   <!-- Scripts -->
@@ -708,11 +708,14 @@
           '#p': [signedEvent.pubkey],
           since: Math.floor(Date.now() / 1000) - 10
         };
+        const subId = `deekay-pm-${signedEvent.id.slice(0, 8)}`;
         console.log('NWC subscribing with filter:', JSON.stringify(filter, null, 2));
         console.log('Our pubkey (from signed event):', signedEvent.pubkey);
         console.log('Request event ID:', signedEvent.id);
+        console.log('Subscription ID:', subId);
 
         const sub = relay.subscribe([filter], {
+          id: subId,
           async onevent(event) {
             console.log('=== Got NWC response event ===');
             try {
