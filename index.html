@@ -462,7 +462,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v29</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v30</p>
   </footer>
 
   <!-- Scripts -->
@@ -693,9 +693,9 @@
       };
 
       const signedEvent = finalizeEvent(event, secretKey);
-      await relay.publish(signedEvent);
 
-      // Wait for response
+      // IMPORTANT: Subscribe for response BEFORE publishing request
+      // Response events are ephemeral, so we must be listening before they're sent
       return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
           sub.close();
@@ -712,28 +712,14 @@
         console.log('Our pubkey (from signed event):', signedEvent.pubkey);
         console.log('Request event ID:', signedEvent.id);
 
-        // Debug: also subscribe without tag filters to see if ANY 23195 events come through
-        const debugFilter = { kinds: [23195], since: Math.floor(Date.now() / 1000) - 10 };
-        const debugSub = relay.subscribe([debugFilter], {
-          onevent(event) {
-            console.log('=== DEBUG: Got 23195 event (unfiltered) ===');
-            console.log('Event ID:', event.id);
-            console.log('Event tags:', JSON.stringify(event.tags));
-            console.log('Looking for #e:', signedEvent.id);
-            console.log('Looking for #p:', signedEvent.pubkey);
-          }
-        });
-        setTimeout(() => debugSub.close(), 35000);
-
         const sub = relay.subscribe([filter], {
           async onevent(event) {
-            console.log('=== FILTERED: Got matching 23195 event ===');
+            console.log('=== Got NWC response event ===');
             try {
               const decrypted = await nip04Decrypt(secretKey, nwc.pubkey, event.content);
               const response = JSON.parse(decrypted);
               clearTimeout(timeout);
               sub.close();
-              debugSub.close();
               // Don't close relay - keep it for future requests
               if (response.error) {
                 reject(new Error(response.error.message || 'NWC error'));
@@ -745,14 +731,18 @@
             }
           },
           oneose() {
-            console.log('NWC subscription EOSE (end of stored events)');
+            console.log('NWC subscription EOSE - now publishing request');
+            // Publish request AFTER subscription is established and EOSE received
+            relay.publish(signedEvent).then(() => {
+              console.log('Request published:', signedEvent.id);
+            }).catch(e => {
+              console.error('Failed to publish request:', e);
+              clearTimeout(timeout);
+              sub.close();
+              reject(e);
+            });
           }
         });
-        console.log('=== FOR CARLOS @ PRIMAL ===');
-        console.log('Request event ID:', signedEvent.id);
-        console.log('Subscription ID:', sub.id || sub.subId || 'not exposed by nostr-tools');
-        console.log('Filter:', JSON.stringify(filter));
-        console.log('Relay:', relay.url);
       });
     }
 
