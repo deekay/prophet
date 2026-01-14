@@ -462,7 +462,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v27</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v28</p>
   </footer>
 
   <!-- Scripts -->
@@ -826,7 +826,8 @@
         type: 'market',
         question,
         resolution_date: new Date(resolutionDate).toISOString(),
-        resolution_criteria: criteria
+        resolution_criteria: criteria,
+        nwc_connection: nwcString  // Store NWC so any bettor can generate invoices
       };
       if (maxBet) {
         marketContent.max_bet_sats = parseInt(maxBet);
@@ -985,10 +986,15 @@
         event: marketEvent
       };
 
-      // Load NWC from localStorage if we're the creator
-      const storedNwc = localStorage.getItem(`nwc_${eventId}`);
-      if (storedNwc) {
-        creatorNwcString = storedNwc;
+      // Load NWC from market event (for any bettor) or localStorage (backwards compat)
+      if (content.nwc_connection) {
+        creatorNwcString = content.nwc_connection;
+      } else {
+        // Fallback to localStorage for older markets
+        const storedNwc = localStorage.getItem(`nwc_${eventId}`);
+        if (storedNwc) {
+          creatorNwcString = storedNwc;
+        }
       }
 
       // Fetch bets
