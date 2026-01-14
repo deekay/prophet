@@ -395,6 +395,22 @@
           <button class="secondary" onclick="dismissPendingBet()">Dismiss</button>
         </div>
       </details>
+
+      <details style="margin-top: 16px; padding: 12px; background: #1a1a1a; border-radius: 6px; border: 1px solid #333;">
+        <summary style="cursor: pointer; color: #666; font-size: 13px;">Manual bet recovery (paid but not recorded?)</summary>
+        <div style="margin-top: 12px;">
+          <p style="color: #aaa; margin: 0 0 12px 0; font-size: 13px;">If you paid an invoice but the bet wasn't recorded, enter all details from your wallet to recover it.</p>
+          <select id="manual-recovery-outcome" style="margin-bottom: 8px;">
+            <option value="yes">YES</option>
+            <option value="no">NO</option>
+          </select>
+          <input type="number" id="manual-recovery-amount" placeholder="Amount (sats)" style="margin-bottom: 8px;" />
+          <input type="text" id="manual-recovery-address" placeholder="Your Lightning Address" style="margin-bottom: 8px;" />
+          <input type="text" id="manual-recovery-hash" placeholder="Payment hash (from wallet)" style="margin-bottom: 8px;" />
+          <input type="text" id="manual-recovery-preimage" placeholder="Payment preimage (from wallet)" style="margin-bottom: 8px;" />
+          <button onclick="manualBetRecovery()">Recover Bet</button>
+        </div>
+      </details>
     </div>
 
     <div id="betting-closed" class="hidden">
@@ -446,7 +462,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v26</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v27</p>
   </footer>
 
   <!-- Scripts -->
@@ -1605,6 +1621,61 @@
       }
     }
     window.verifyRecoveryPreimage = verifyRecoveryPreimage;
+
+    async function manualBetRecovery() {
+      const outcome = document.getElementById('manual-recovery-outcome').value;
+      const amount = parseInt(document.getElementById('manual-recovery-amount').value);
+      const payoutAddress = document.getElementById('manual-recovery-address').value.trim();
+      const paymentHash = document.getElementById('manual-recovery-hash').value.trim().replace(/-/g, '');
+      const preimageHex = document.getElementById('manual-recovery-preimage').value.trim().replace(/-/g, '');
+
+      if (!outcome || !amount || !payoutAddress || !paymentHash || !preimageHex) {
+        alert('Please fill in all fields');
+        return;
+      }
+
+      if (!payoutAddress.includes('@')) {
+        alert('Please enter a valid Lightning Address');
+        return;
+      }
+
+      try {
+        // Verify preimage matches payment hash
+        const preimageBytes = hexToBytes(preimageHex);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', preimageBytes);
+        const hashHex = Array.from(new Uint8Array(hashBuffer))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('');
+
+        if (hashHex !== paymentHash) {
+          alert('Preimage does not match payment hash. Please check your values.\n\nExpected hash: ' + paymentHash + '\nGot: ' + hashHex);
+          return;
+        }
+
+        // Create pending invoice object for recordBet
+        pendingInvoice = {
+          paymentHash: paymentHash,
+          preimage: preimageHex,
+          amount: amount,
+          outcome: outcome,
+          payoutAddress: payoutAddress,
+          marketId: currentMarket.id
+        };
+
+        await recordBet();
+        alert('Bet recovered successfully!');
+
+        // Clear the form
+        document.getElementById('manual-recovery-amount').value = '';
+        document.getElementById('manual-recovery-address').value = '';
+        document.getElementById('manual-recovery-hash').value = '';
+        document.getElementById('manual-recovery-preimage').value = '';
+      } catch (e) {
+        console.error('Manual recovery error:', e);
+        alert('Recovery failed: ' + e.message);
+      }
+    }
+    window.manualBetRecovery = manualBetRecovery;
 
     function dismissPendingBet() {
       if (currentMarket) {
