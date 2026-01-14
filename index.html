@@ -446,7 +446,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v24</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v25</p>
   </footer>
 
   <!-- Scripts -->
@@ -696,13 +696,28 @@
         console.log('Our pubkey (from signed event):', signedEvent.pubkey);
         console.log('Request event ID:', signedEvent.id);
 
+        // Debug: also subscribe without tag filters to see if ANY 23195 events come through
+        const debugFilter = { kinds: [23195], since: Math.floor(Date.now() / 1000) - 10 };
+        const debugSub = relay.subscribe([debugFilter], {
+          onevent(event) {
+            console.log('=== DEBUG: Got 23195 event (unfiltered) ===');
+            console.log('Event ID:', event.id);
+            console.log('Event tags:', JSON.stringify(event.tags));
+            console.log('Looking for #e:', signedEvent.id);
+            console.log('Looking for #p:', signedEvent.pubkey);
+          }
+        });
+        setTimeout(() => debugSub.close(), 35000);
+
         const sub = relay.subscribe([filter], {
           async onevent(event) {
+            console.log('=== FILTERED: Got matching 23195 event ===');
             try {
               const decrypted = await nip04Decrypt(secretKey, nwc.pubkey, event.content);
               const response = JSON.parse(decrypted);
               clearTimeout(timeout);
               sub.close();
+              debugSub.close();
               // Don't close relay - keep it for future requests
               if (response.error) {
                 reject(new Error(response.error.message || 'NWC error'));
@@ -712,6 +727,9 @@
             } catch (e) {
               reject(e);
             }
+          },
+          oneose() {
+            console.log('NWC subscription EOSE (end of stored events)');
           }
         });
       });
