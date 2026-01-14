@@ -465,7 +465,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v33</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v34</p>
   </footer>
 
   <!-- Scripts -->
@@ -1505,6 +1505,11 @@
           settled_at: pendingInvoice.settled_at
         });
         renderMarket();
+        // Clear pending bet from localStorage and hide recovery section
+        if (pendingInvoice && pendingInvoice.marketId) {
+          localStorage.removeItem(`pending_bet_${pendingInvoice.marketId}`);
+        }
+        document.getElementById('pending-bet-recovery').classList.add('hidden');
         pendingInvoice = null;
         return;
       }
@@ -1546,10 +1551,11 @@
         clearInterval(pollingInterval);
         pollingInterval = null;
       }
-      // Clear pending bet from localStorage
+      // Clear pending bet from localStorage and hide recovery section
       if (pendingInvoice && pendingInvoice.marketId) {
         localStorage.removeItem(`pending_bet_${pendingInvoice.marketId}`);
       }
+      document.getElementById('pending-bet-recovery').classList.add('hidden');
       pendingInvoice = null;
       closeNwcRelay();
     }
