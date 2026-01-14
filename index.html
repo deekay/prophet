@@ -348,23 +348,26 @@
 
       <div id="bet-invoice" class="hidden">
         <div class="status info">Pay this invoice to confirm your bet:</div>
+        <p style="text-align: center; color: #888; margin-bottom: 12px;">Scan with your Lightning wallet</p>
         <div class="qr-container" id="qr-container">
         </div>
-        <div class="invoice-text" id="invoice-text"></div>
-        <div id="webln-pay-section">
-          <button id="btn-webln-pay" onclick="payWithWebLN()">Pay with Wallet</button>
-          <p style="color: #666; font-size: 13px; margin-top: 4px;">Works with Alby and other WebLN wallets (recommended)</p>
-        </div>
 
-        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #333;">
-          <div style="margin-bottom: 12px; text-align: center; color: #555;">— or pay manually —</div>
-          <button onclick="copyInvoice()">Copy Invoice</button>
-        </div>
-
-        <div id="auto-verify-section" style="margin-top: 20px; padding: 16px; background: #1a2a1a; border: 1px solid #4a4; border-radius: 8px; text-align: center;">
+        <div id="auto-verify-section" style="margin-top: 16px; padding: 16px; background: #1a2a1a; border: 1px solid #4a4; border-radius: 8px; text-align: center;">
           <p id="payment-status" style="color: #6c6; margin: 0 0 8px 0; font-weight: bold; font-size: 15px;">Waiting for payment...</p>
           <p style="color: #888; margin: 0; font-size: 13px;">Payment will be verified automatically</p>
         </div>
+
+        <details style="margin-top: 16px;">
+          <summary style="cursor: pointer; color: #666; font-size: 13px;">Other payment options</summary>
+          <div style="margin-top: 12px;">
+            <div class="invoice-text" id="invoice-text" style="font-size: 11px; margin-bottom: 12px;"></div>
+            <button onclick="copyInvoice()" style="margin-bottom: 8px;">Copy Invoice</button>
+            <div id="webln-pay-section">
+              <button id="btn-webln-pay" onclick="payWithWebLN()">Pay with Browser Wallet</button>
+              <p style="color: #666; font-size: 12px; margin-top: 4px;">For Alby and other WebLN wallets</p>
+            </div>
+          </div>
+        </details>
 
         <details id="manual-preimage-section" style="margin-top: 16px;">
           <summary style="cursor: pointer; color: #666; font-size: 13px;">Payment not detected? Verify manually</summary>
@@ -462,7 +465,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v31</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v32</p>
   </footer>
 
   <!-- Scripts -->
