@@ -333,6 +333,8 @@
           </div>
         </div>
 
+        <div id="bet-error" class="hidden" style="background: #450a0a; border: 1px solid #dc2626; padding: 10px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 14px; color: #fca5a5;"></div>
+
         <div style="display: flex; gap: 16px;">
           <button class="yes" onclick="placeBet('yes')">Bet YES</button>
           <button class="no" onclick="placeBet('no')">Bet NO</button>
@@ -369,7 +371,11 @@
 
       <div id="bet-confirmed" class="hidden">
         <div class="status success">Bet confirmed!</div>
-        <p>Your bet has been recorded. If you win, payment will be sent to your Lightning Address.</p>
+        <div style="background: #1a1a2e; border-radius: 8px; padding: 16px; margin: 12px 0;">
+          <p style="margin: 0 0 8px 0;"><strong id="confirmed-outcome" style="font-size: 18px;"></strong> for <strong id="confirmed-amount"></strong></p>
+          <p style="margin: 0; color: #888; font-size: 14px;">Potential win: <span id="confirmed-payout" style="color: #4ade80;"></span></p>
+        </div>
+        <p style="color: #888; font-size: 14px;">If you win, payment will be sent to your Lightning Address.</p>
         <button onclick="resetBetForm()">Place Another Bet</button>
       </div>
 
@@ -440,13 +446,13 @@
       <div id="payout-status"></div>
     </div>
 
-    <button class="secondary" onclick="showView('market-view')">Back to Market</button>
+    <button class="secondary" onclick="showView('creator-view')">Back to Dashboard</button>
   </div>
 
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v42</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v43</p>
   </footer>
 
   <!-- Scripts -->
@@ -1118,30 +1124,42 @@
     }
     window.updatePotentialWinnings = updatePotentialWinnings;
 
+    function showBetError(message) {
+      const el = document.getElementById('bet-error');
+      el.textContent = message;
+      el.classList.remove('hidden');
+    }
+
+    function hideBetError() {
+      document.getElementById('bet-error').classList.add('hidden');
+    }
+
     async function placeBet(outcome) {
       debug('Placing bet on', outcome);
+      hideBetError();
+
       const payoutAddress = document.getElementById('payout-address-input').value.trim();
       const amount = parseInt(document.getElementById('bet-amount-input').value);
 
       // Require valid Lightning Address
       if (!payoutAddress || !payoutAddress.includes('@')) {
-        alert('Please enter a valid Lightning Address (user@domain.com)');
+        showBetError('Please enter a valid Lightning Address (e.g. you@wallet.com)');
         return;
       }
       // Save for next time
       localStorage.setItem('lightning_address', payoutAddress);
       if (!amount || amount < 1) {
-        alert('Please enter a valid amount');
+        showBetError('Please enter a bet amount');
         return;
       }
       if (currentMarket.content.max_bet_sats && amount > currentMarket.content.max_bet_sats) {
-        alert(`Maximum bet is ₿${currentMarket.content.max_bet_sats}`);
+        showBetError(`Maximum bet is ₿${currentMarket.content.max_bet_sats.toLocaleString()}`);
         return;
       }
 
       // Check if we have NWC for this market
       if (!creatorNwcString) {
-        alert('This market cannot accept bets (creator wallet not connected)');
+        showBetError('This market cannot accept bets (creator wallet not connected)');
         return;
       }
 
@@ -1180,16 +1198,13 @@
         });
         document.getElementById('payment-status').textContent = 'Waiting for payment...';
 
-        // Clear preimage input for new bet
-        document.getElementById('preimage-input').value = '';
-
         // Start polling for payment via lookup_invoice
         startPaymentPolling();
 
       } catch (e) {
         console.error('Failed to create invoice', e);
-        alert('Failed to create invoice: ' + e.message);
         resetBetForm();
+        showBetError('Failed to create invoice: ' + e.message);
       }
     }
     window.placeBet = placeBet;
@@ -1412,9 +1427,23 @@
       const signedEvent = finalizeEvent(event, sk);
       await publishEvent(signedEvent);
 
-      // Show confirmation
+      // Show confirmation with bet details
       document.getElementById('bet-invoice').classList.add('hidden');
       document.getElementById('bet-confirmed').classList.remove('hidden');
+
+      // Populate confirmation details
+      const outcomeColor = pendingInvoice.outcome === 'yes' ? '#4ade80' : '#f87171';
+      document.getElementById('confirmed-outcome').textContent = pendingInvoice.outcome.toUpperCase();
+      document.getElementById('confirmed-outcome').style.color = outcomeColor;
+      document.getElementById('confirmed-amount').textContent = `₿${pendingInvoice.amount.toLocaleString()}`;
+
+      // Calculate potential payout
+      const currentYes = currentBets.filter(b => b.outcome === 'yes').reduce((sum, b) => sum + b.amount_sats, 0);
+      const currentNo = currentBets.filter(b => b.outcome === 'no').reduce((sum, b) => sum + b.amount_sats, 0);
+      const totalPool = currentYes + currentNo;
+      const myPool = pendingInvoice.outcome === 'yes' ? currentYes : currentNo;
+      const potentialPayout = Math.floor((totalPool * 0.95) * (pendingInvoice.amount / myPool));
+      document.getElementById('confirmed-payout').textContent = `₿${potentialPayout.toLocaleString()}`;
 
       currentBets.push({ ...betContent, id: signedEvent.id });
       renderMarket();
@@ -1486,13 +1515,12 @@
     }
 
     async function autoRecoverPendingBet() {
-      if (!pendingInvoice || !nwcString) {
+      if (!pendingInvoice || !creatorNwcString) {
         debug('Cannot auto-recover: missing pending invoice or NWC');
         return;
       }
 
       try {
-        await connectNwcRelay();
         const result = await nwcRequest('lookup_invoice', {
           payment_hash: pendingInvoice.paymentHash
         });
