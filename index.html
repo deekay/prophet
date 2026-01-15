@@ -316,8 +316,9 @@
 
     <div id="betting-open">
       <div id="bet-form">
-        <label>Your Lightning Address (for payout) *</label>
+        <label>Your Lightning Address *</label>
         <input type="text" id="payout-address-input" placeholder="you@walletofsatoshi.com" required />
+        <p style="font-size: 12px; color: #888; margin: 4px 0 12px 0;">Where to send your winnings. Lightning can't reply to payments, so we need this to pay you.</p>
 
         <label>Bet Amount (₿)</label>
         <input type="number" id="bet-amount-input" placeholder="500" oninput="updatePotentialWinnings()" />
@@ -433,7 +434,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v37</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v38</p>
   </footer>
 
   <!-- Scripts -->
@@ -1007,6 +1008,13 @@
       document.getElementById('market-criteria').textContent = c.resolution_criteria;
       document.getElementById('resolve-question').textContent = c.question;
 
+      // Pre-fill saved Lightning Address
+      const savedAddress = localStorage.getItem('lightning_address');
+      const addressInput = document.getElementById('payout-address-input');
+      if (savedAddress && !addressInput.value) {
+        addressInput.value = savedAddress;
+      }
+
       // Calculate pools
       let yesPool = 0;
       let noPool = 0;
@@ -1124,6 +1132,8 @@
         alert('Please enter a valid Lightning Address (user@domain.com)');
         return;
       }
+      // Save for next time
+      localStorage.setItem('lightning_address', payoutAddress);
       if (!amount || amount < 1) {
         alert('Please enter a valid amount');
         return;
