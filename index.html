@@ -206,10 +206,16 @@
 </head>
 <body>
   <!-- Header with logo -->
-  <header onclick="showView('home-view')" style="cursor: pointer; padding: 12px 0; margin-bottom: 8px;">
-    <div style="display: flex; align-items: center; gap: 8px;">
+  <header style="padding: 12px 0; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+    <div onclick="showView('home-view')" style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
       <div style="width: 32px; height: 32px; background: linear-gradient(135deg, #f7931a, #ff6b00); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white;">PM</div>
       <span style="font-size: 16px; font-weight: 600; color: #ccc;">Prediction Markets</span>
+    </div>
+    <div onclick="showView('creator-view')" style="cursor: pointer; padding: 8px; border-radius: 6px; background: #222;" title="Creator Dashboard">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+        <circle cx="12" cy="7" r="4"></circle>
+      </svg>
     </div>
   </header>
 
@@ -410,7 +416,30 @@
       </div>
     </div>
 
-    <button class="secondary" onclick="showView('resolve-view')" id="resolve-btn">Resolve Market (Creator)</button>
+  </div>
+
+  <!-- Creator Dashboard View -->
+  <div id="creator-view" class="view">
+    <h2>Creator Dashboard</h2>
+
+    <div id="creator-login">
+      <p style="color: #aaa; margin-bottom: 16px;">Enter your nsec to view and manage your markets.</p>
+      <label>Your nsec (secret key)</label>
+      <input type="password" id="creator-nsec-input" placeholder="nsec1..." />
+      <button onclick="creatorLogin()">Login</button>
+    </div>
+
+    <div id="creator-dashboard" class="hidden">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <p style="color: #888; margin: 0;">Logged in as: <span id="creator-pubkey" style="color: #4ade80; font-family: monospace;"></span></p>
+        <button class="secondary" onclick="creatorLogout()" style="padding: 6px 12px; font-size: 12px;">Logout</button>
+      </div>
+
+      <h3>Your Markets</h3>
+      <div id="creator-markets-list">
+        <p style="color: #666;">Loading...</p>
+      </div>
+    </div>
   </div>
 
   <!-- Resolve View -->
@@ -441,7 +470,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v39</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v40</p>
   </footer>
 
   <!-- Scripts -->
@@ -884,8 +913,8 @@
     // ============================================
     // LOAD MARKET
     // ============================================
-    async function loadMarketById() {
-      let input = document.getElementById('market-id-input').value.trim();
+    async function loadMarketById(marketIdParam) {
+      let input = marketIdParam || document.getElementById('market-id-input').value.trim();
 
       // If it's a URL, extract the market ID from it
       if (input.includes('?m=')) {
@@ -897,21 +926,26 @@
         }
       }
 
-      const eventId = decodeNoteId(input);
+      // If it's already a hex event ID (64 chars), use it directly
+      const eventId = input.length === 64 && /^[a-f0-9]+$/.test(input) ? input : decodeNoteId(input);
       if (!eventId) {
         alert('Invalid market URL or ID');
         return;
       }
 
-      // Show loading state
-      document.getElementById('btn-load-market').classList.add('hidden');
-      document.getElementById('load-status').classList.remove('hidden');
+      // Show loading state (only if using the input form)
+      if (!marketIdParam) {
+        document.getElementById('btn-load-market').classList.add('hidden');
+        document.getElementById('load-status').classList.remove('hidden');
+      }
 
       try {
         await loadMarket(eventId);
       } finally {
-        document.getElementById('btn-load-market').classList.remove('hidden');
-        document.getElementById('load-status').classList.add('hidden');
+        if (!marketIdParam) {
+          document.getElementById('btn-load-market').classList.remove('hidden');
+          document.getElementById('load-status').classList.add('hidden');
+        }
       }
     }
     window.loadMarketById = loadMarketById;
@@ -1579,6 +1613,130 @@
     }
 
     // ============================================
+    // CREATOR DASHBOARD
+    // ============================================
+    let creatorSk = null;
+    let creatorPk = null;
+
+    async function creatorLogin() {
+      const nsecInput = document.getElementById('creator-nsec-input').value.trim();
+      const sk = decodeNsec(nsecInput);
+
+      if (!sk) {
+        alert('Invalid nsec');
+        return;
+      }
+
+      creatorSk = sk;
+      creatorPk = getPublicKey(sk);
+
+      // Save nsec for convenience (user can logout to clear)
+      localStorage.setItem('creator_nsec', nsecInput);
+
+      document.getElementById('creator-login').classList.add('hidden');
+      document.getElementById('creator-dashboard').classList.remove('hidden');
+      document.getElementById('creator-pubkey').textContent = creatorPk.slice(0, 8) + '...' + creatorPk.slice(-8);
+
+      await loadCreatorMarkets();
+    }
+    window.creatorLogin = creatorLogin;
+
+    function creatorLogout() {
+      creatorSk = null;
+      creatorPk = null;
+      localStorage.removeItem('creator_nsec');
+      document.getElementById('creator-nsec-input').value = '';
+      document.getElementById('creator-login').classList.remove('hidden');
+      document.getElementById('creator-dashboard').classList.add('hidden');
+    }
+    window.creatorLogout = creatorLogout;
+
+    async function loadCreatorMarkets() {
+      const listEl = document.getElementById('creator-markets-list');
+      listEl.innerHTML = '<p style="color: #666;">Loading...</p>';
+
+      try {
+        const relays = await connectRelays();
+        const filter = {
+          kinds: [1],
+          authors: [creatorPk],
+          '#t': ['prediction-market']
+        };
+
+        const events = [];
+        await new Promise((resolve) => {
+          const sub = relays[0].subscribe([filter], {
+            onevent(event) {
+              events.push(event);
+            },
+            oneose() {
+              sub.close();
+              resolve();
+            }
+          });
+          setTimeout(() => { sub.close(); resolve(); }, 5000);
+        });
+
+        // Filter to only market events
+        const markets = events.filter(e => {
+          try {
+            const c = JSON.parse(e.content);
+            return c.type === 'market';
+          } catch { return false; }
+        });
+
+        if (markets.length === 0) {
+          listEl.innerHTML = '<p style="color: #666;">No markets found for this account.</p>';
+          return;
+        }
+
+        // Sort by created_at descending
+        markets.sort((a, b) => b.created_at - a.created_at);
+
+        listEl.innerHTML = markets.map(m => {
+          const c = JSON.parse(m.content);
+          const isPast = new Date(c.resolution_date) < new Date();
+          return `
+            <div class="card" style="margin-bottom: 12px; cursor: pointer;" onclick="openCreatorMarket('${m.id}')">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                  <strong>${c.question}</strong>
+                  <p style="color: #888; font-size: 12px; margin: 4px 0 0 0;">
+                    Resolves: ${new Date(c.resolution_date).toLocaleDateString()}
+                  </p>
+                </div>
+                <span style="font-size: 11px; padding: 4px 8px; border-radius: 4px; background: ${isPast ? '#4a3000' : '#1a3a1a'}; color: ${isPast ? '#ffa500' : '#4ade80'};">
+                  ${isPast ? 'Ready to resolve' : 'Active'}
+                </span>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+      } catch (e) {
+        console.error('Error loading creator markets:', e);
+        listEl.innerHTML = '<p style="color: #f87171;">Error loading markets</p>';
+      }
+    }
+
+    async function openCreatorMarket(marketId) {
+      // Load the market and go to resolve view
+      await loadMarketById(marketId);
+      // Pre-fill the nsec in resolve view
+      document.getElementById('resolve-nsec-input').value = localStorage.getItem('creator_nsec') || '';
+      showView('resolve-view');
+    }
+    window.openCreatorMarket = openCreatorMarket;
+
+    // Auto-login if nsec saved
+    function checkCreatorSession() {
+      const savedNsec = localStorage.getItem('creator_nsec');
+      if (savedNsec) {
+        document.getElementById('creator-nsec-input').value = savedNsec;
+      }
+    }
+
+    // ============================================
     // RESOLUTION
     // ============================================
     async function resolveMarket(outcome) {
@@ -1855,6 +2013,7 @@
 
     async function init() {
       setupEventListeners();
+      checkCreatorSession();
 
       // Check for market ID in URL
       const params = new URLSearchParams(window.location.search);
