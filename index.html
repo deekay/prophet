@@ -228,7 +228,7 @@
   <div id="loading-view" class="view">
     <div style="text-align: center; padding: 60px 20px;">
       <div class="loader" style="margin: 0 auto;"></div>
-      <p style="margin-top: 20px; color: #888;">Fetching prophecy from Nostr relays...</p>
+      <p style="margin-top: 20px; color: #888;">Loading...</p>
     </div>
   </div>
 
@@ -250,25 +250,30 @@
     <h2>Create a Prophecy</h2>
 
     <div id="create-step-1">
-      <label for="question-input">Prophecy</label>
-      <input type="text" id="question-input" placeholder="Will X happen by Y date?" oninput="checkQuestionFormat()" />
+      <label for="question-input">What do you want to predict?</label>
+      <input type="text" id="question-input" placeholder="Will Steve shave his beard by Friday?" oninput="checkQuestionFormat()" />
       <p id="question-hint" class="hidden" style="color: #fbbf24; font-size: 13px; margin: 4px 0 0 0;">Tip: Phrase as a yes/no question (e.g. "Will...?")</p>
 
-      <label for="yes-criteria-input">YES wins if...</label>
-      <input type="text" id="yes-criteria-input" placeholder="Steve shaves his beard by end of month" />
-
-      <label for="no-criteria-input">NO wins if...</label>
-      <input type="text" id="no-criteria-input" placeholder="The beard survives" />
-
-      <label for="resolution-date-input">Resolution Date</label>
+      <label for="resolution-date-input">When will you know the answer?</label>
       <input type="datetime-local" id="resolution-date-input" />
 
-      <label for="max-bet-input">Max Bet (₿, optional)</label>
-      <input type="number" id="max-bet-input" placeholder="10000" />
-
-      <label for="nwc-input">NWC Connection String</label>
+      <label for="nwc-input">Connect your wallet</label>
       <input type="text" id="nwc-input" placeholder="nostr+walletconnect://..." autocomplete="off" />
       <p style="color: #888; font-size: 14px;">Get this from <a href="https://primal.net/downloads" target="_blank">Primal</a>: Settings → Wallet → Create new wallet connection</p>
+
+      <details id="advanced-options" style="margin-top: 16px;">
+        <summary style="cursor: pointer; color: #666; font-size: 14px;">Advanced options</summary>
+        <div style="margin-top: 12px;">
+          <label for="yes-criteria-input">YES wins if...</label>
+          <input type="text" id="yes-criteria-input" placeholder="Leave blank to auto-generate" />
+
+          <label for="no-criteria-input">NO wins if...</label>
+          <input type="text" id="no-criteria-input" placeholder="Leave blank to auto-generate" />
+
+          <label for="max-bet-input">Max bet per person (sats)</label>
+          <input type="number" id="max-bet-input" placeholder="No limit" />
+        </div>
+      </details>
 
       <div id="creator-identity-section" class="hidden" style="background: #1a2a1a; border: 1px solid #4a4; border-radius: 8px; padding: 12px; margin-top: 16px;">
         <p style="margin: 0 0 8px 0; color: #6c6; font-size: 14px;">✓ Creating as: <span id="create-as-pubkey" style="font-family: monospace;"></span></p>
@@ -278,7 +283,7 @@
       <button id="btn-create-market">Create Prophecy</button>
       <div id="create-status" class="hidden" style="text-align: center; padding: 20px;" role="status" aria-live="polite">
         <div class="loader" aria-hidden="true"></div>
-        <p id="create-status-text" style="margin-top: 12px; color: #888;">Publishing to Nostr relays...</p>
+        <p id="create-status-text" style="margin-top: 12px; color: #888;">Publishing...</p>
       </div>
       <button id="btn-cancel-create" class="secondary">Cancel</button>
     </div>
@@ -307,106 +312,94 @@
 
   <!-- Market View (Betting) -->
   <div id="market-view" class="view">
-    <h2 id="market-question">Loading...</h2>
-
-    <div class="card">
-      <p style="margin: 0;"><strong>Resolves:</strong> <span id="market-resolution-date"></span></p>
-    </div>
-
-    <div id="total-pool-display" style="text-align: center; padding: 12px; background: #1a1a2e; border-radius: 8px; margin-bottom: 12px;">
-      <span style="color: #888; font-size: 14px;">Total pool:</span>
-      <span id="total-pool" style="font-size: 18px; font-weight: bold; margin-left: 8px;">₿0</span>
-    </div>
-
-    <div class="odds">
-      <div style="border-left: 3px solid #16a34a;">
-        <div class="outcome">YES</div>
-        <div class="pool" id="yes-percent" style="color: #4ade80;">50%</div>
-        <div id="yes-pool" style="font-size: 13px; color: #888; margin-top: 4px;">₿0</div>
-      </div>
-      <div style="border-left: 3px solid #dc2626;">
-        <div class="outcome">NO</div>
-        <div class="pool" id="no-percent" style="color: #f87171;">50%</div>
-        <div id="no-pool" style="font-size: 13px; color: #888; margin-top: 4px;">₿0</div>
-      </div>
-    </div>
+    <!-- Consolidated header -->
+    <h2 id="market-question" style="margin-bottom: 8px;">Loading...</h2>
+    <p id="market-meta" style="color: #888; font-size: 14px; margin: 0 0 20px 0;">
+      Resolves <span id="market-resolution-date"></span> · <span id="total-pool">₿0</span> pool
+    </p>
 
     <div id="betting-open">
-      <div id="bet-form">
-        <label for="payout-address-input">Your Lightning Address *</label>
-        <input type="text" id="payout-address-input" placeholder="you@walletofsatoshi.com" required autocomplete="email" />
-        <p style="font-size: 12px; color: #888; margin: 4px 0 12px 0;">Where to send your winnings if you win.</p>
-
-        <label for="bet-amount-input">Bet Amount (₿)</label>
-        <input type="number" id="bet-amount-input" placeholder="500" oninput="updatePotentialWinnings()" />
-
-        <div id="potential-winnings" style="background: #1a1a2e; border-radius: 8px; padding: 12px; margin: 12px 0; font-size: 14px;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-            <span>If <strong style="color: #4ade80;">YES</strong> wins:</span>
-            <span id="yes-potential">Enter amount above</span>
+      <!-- Step 1: Choose side (bet-first flow) -->
+      <div id="bet-step-choose">
+        <div class="odds" style="margin-bottom: 16px;">
+          <div style="border-left: 3px solid #16a34a; cursor: pointer;" onclick="selectOutcome('yes')">
+            <div class="outcome">YES</div>
+            <div class="pool" id="yes-percent" style="color: #4ade80;">50%</div>
+            <div id="yes-multiplier" style="font-size: 13px; color: #888; margin-top: 4px;">1.0x</div>
           </div>
-          <div style="display: flex; justify-content: space-between;">
-            <span>If <strong style="color: #f87171;">NO</strong> wins:</span>
-            <span id="no-potential">Enter amount above</span>
-          </div>
-          </div>
-
-        <div id="bet-error" class="hidden" style="background: #450a0a; border: 1px solid #dc2626; padding: 10px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 14px; color: #fca5a5;"></div>
-
-        <div style="display: flex; flex-direction: column; gap: 12px;">
-          <div style="background: #0d2818; border: 1px solid #16a34a; border-radius: 8px; padding: 12px;">
-            <p id="yes-criteria-display" style="margin: 0 0 10px 0; font-size: 14px; color: #a8e6a0;"></p>
-            <button class="yes" onclick="placeBet('yes')" style="margin: 0;">Bet YES</button>
-          </div>
-          <div style="background: #2a1215; border: 1px solid #dc2626; border-radius: 8px; padding: 12px;">
-            <p id="no-criteria-display" style="margin: 0 0 10px 0; font-size: 14px; color: #f8a0a0;"></p>
-            <button class="no" onclick="placeBet('no')" style="margin: 0;">Bet NO</button>
+          <div style="border-left: 3px solid #dc2626; cursor: pointer;" onclick="selectOutcome('no')">
+            <div class="outcome">NO</div>
+            <div class="pool" id="no-percent" style="color: #f87171;">50%</div>
+            <div id="no-multiplier" style="font-size: 13px; color: #888; margin-top: 4px;">1.0x</div>
           </div>
         </div>
+
+        <details id="criteria-details" style="margin-bottom: 16px;">
+          <summary style="cursor: pointer; color: #666; font-size: 13px;">Resolution criteria</summary>
+          <div style="margin-top: 12px; padding: 12px; background: #1a1a1a; border-radius: 8px; font-size: 14px;">
+            <p style="margin: 0 0 8px 0;"><span style="color: #4ade80;">YES:</span> <span id="yes-criteria-display"></span></p>
+            <p style="margin: 0;"><span style="color: #f87171;">NO:</span> <span id="no-criteria-display"></span></p>
+          </div>
+        </details>
       </div>
 
-      <div id="bet-invoice" class="hidden">
-        <div class="status info">Pay this invoice to confirm your bet:</div>
-        <p style="text-align: center; color: #888; margin-bottom: 12px;">Scan with your Lightning wallet</p>
-        <div class="qr-container" id="qr-container">
+      <!-- Step 2: Enter details (after choosing side) -->
+      <div id="bet-step-details" class="hidden">
+        <div style="background: #1a1a2e; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+          <p style="margin: 0 0 12px 0; font-size: 15px;">
+            Betting <strong id="selected-outcome-display" style="font-size: 18px;"></strong>
+            <span id="selected-multiplier" style="color: #888;"></span>
+          </p>
+
+          <label for="bet-amount-input" style="margin-top: 0;">Amount (sats)</label>
+          <input type="number" id="bet-amount-input" placeholder="500" oninput="updateWinPreview()" />
+          <p id="win-preview" style="font-size: 13px; color: #888; margin: 4px 0 0 0;"></p>
         </div>
 
-        <div id="auto-verify-section" style="margin-top: 16px; padding: 16px; background: #1a2a1a; border: 1px solid #4a4; border-radius: 8px; text-align: center;" role="status" aria-live="polite">
-          <p id="payment-status" style="color: #6c6; margin: 0 0 8px 0; font-weight: bold; font-size: 15px;">Waiting for payment...</p>
-          <p style="color: #888; margin: 0; font-size: 13px;">Payment will be verified automatically</p>
+        <label for="payout-address-input">Your Lightning Address</label>
+        <input type="text" id="payout-address-input" placeholder="you@strike.me" autocomplete="email" />
+
+        <div id="bet-error" class="hidden" style="background: #450a0a; border: 1px solid #dc2626; padding: 10px 12px; border-radius: 6px; margin: 12px 0; font-size: 14px; color: #fca5a5;"></div>
+
+        <button id="btn-place-bet" onclick="confirmBet()">Place Bet</button>
+        <button class="secondary" onclick="backToChoose()">Back</button>
+      </div>
+
+      <!-- Step 3: Pay invoice -->
+      <div id="bet-step-pay" class="hidden">
+        <p style="text-align: center; color: #888; margin-bottom: 8px; font-size: 14px;">Scan to pay <strong id="invoice-amount"></strong></p>
+        <div class="qr-container" id="qr-container"></div>
+
+        <div style="text-align: center; margin-top: 16px;" role="status" aria-live="polite">
+          <div class="loader" style="margin: 0 auto 8px auto;"></div>
+          <p id="payment-status" style="color: #888; margin: 0; font-size: 14px;">Waiting for payment...</p>
         </div>
 
-        <details style="margin-top: 16px;">
-          <summary style="cursor: pointer; color: #666; font-size: 13px;">Other payment options</summary>
+        <details style="margin-top: 20px;">
+          <summary style="cursor: pointer; color: #555; font-size: 13px;">Having trouble?</summary>
           <div style="margin-top: 12px;">
             <div class="invoice-text" id="invoice-text" style="font-size: 11px; margin-bottom: 12px;"></div>
             <button onclick="copyInvoice()" style="margin-bottom: 8px;">Copy Invoice</button>
-            <div id="webln-pay-section">
-              <button id="btn-webln-pay" onclick="payWithWebLN()">Pay with Browser Wallet</button>
-              <p style="color: #666; font-size: 12px; margin-top: 4px;">For Alby and other WebLN wallets</p>
-            </div>
+            <button id="btn-webln-pay" onclick="payWithWebLN()">Pay with Browser Wallet</button>
           </div>
         </details>
 
-        <div style="margin-top: 16px;">
-          <button class="secondary" onclick="cancelBet()">Cancel (I haven't paid)</button>
-        </div>
+        <button class="secondary" onclick="cancelBet()" style="margin-top: 16px;">Cancel</button>
       </div>
 
-      <div id="bet-confirmed" class="hidden">
-        <div class="status success">Bet confirmed!</div>
-        <div style="background: #1a1a2e; border-radius: 8px; padding: 16px; margin: 12px 0;">
-          <p style="margin: 0 0 8px 0;"><strong id="confirmed-outcome" style="font-size: 18px;"></strong> for <strong id="confirmed-amount"></strong></p>
-          <p style="margin: 0; color: #888; font-size: 14px;">Potential win: <span id="confirmed-payout" style="color: #4ade80;"></span></p>
+      <!-- Step 4: Confirmed -->
+      <div id="bet-step-confirmed" class="hidden">
+        <div style="text-align: center; padding: 24px 0;">
+          <div style="font-size: 48px; margin-bottom: 12px;">✓</div>
+          <p style="font-size: 18px; margin: 0 0 8px 0;"><strong id="confirmed-outcome"></strong> for <strong id="confirmed-amount"></strong></p>
+          <p style="color: #888; font-size: 14px; margin: 0;">Win <span id="confirmed-payout" style="color: #4ade80;"></span> if you're right</p>
         </div>
-        <p style="color: #888; font-size: 14px;">If you win, payment will be sent to your Lightning Address.</p>
         <button onclick="resetBetForm()">Place Another Bet</button>
       </div>
-
     </div>
 
     <div id="betting-closed" class="hidden">
-      <div class="status warning">Betting is closed. Awaiting revelation.</div>
+      <div class="status warning">Betting is closed. Awaiting resolution.</div>
     </div>
 
     <div id="market-resolved" class="hidden">
@@ -415,11 +408,9 @@
       </div>
     </div>
 
-    <div class="card">
-      <h3>Recent Bets</h3>
-      <div id="bet-list" class="bet-list">
-        <p style="color: #888; text-align: center; padding: 8px 0;">Be the first to bet!</p>
-      </div>
+    <div id="recent-bets-section" class="card hidden">
+      <h3 style="margin-top: 0;">Recent Bets</h3>
+      <div id="bet-list" class="bet-list"></div>
     </div>
 
   </div>
@@ -475,7 +466,7 @@
 
   <footer>
     <p>powered by bitcoin, nostr, and lightning</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v74</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v75</p>
   </footer>
 
   <!-- Scripts -->
@@ -804,13 +795,21 @@
       const nwcString = document.getElementById('nwc-input').value.trim();
       const question = document.getElementById('question-input').value.trim();
       const resolutionDate = document.getElementById('resolution-date-input').value;
-      const yesCriteria = document.getElementById('yes-criteria-input').value.trim();
-      const noCriteria = document.getElementById('no-criteria-input').value.trim();
+      let yesCriteria = document.getElementById('yes-criteria-input').value.trim();
+      let noCriteria = document.getElementById('no-criteria-input').value.trim();
       const maxBet = document.getElementById('max-bet-input').value;
 
-      if (!nwcString || !question || !resolutionDate || !yesCriteria || !noCriteria) {
+      if (!nwcString || !question || !resolutionDate) {
         alert('Please fill in all required fields');
         return;
+      }
+
+      // Auto-generate criteria if not provided
+      if (!yesCriteria) {
+        yesCriteria = question.endsWith('?') ? question.slice(0, -1) + ' - YES' : question + ' - YES';
+      }
+      if (!noCriteria) {
+        noCriteria = question.endsWith('?') ? question.slice(0, -1) + ' - NO' : question + ' - NO';
       }
 
       setCreateStatus(true, 'Connecting to relays...');
@@ -1060,7 +1059,7 @@
 
       const c = currentMarket.content;
       document.getElementById('market-question').textContent = c.question;
-      document.getElementById('market-resolution-date').textContent = new Date(c.resolution_date).toLocaleString();
+      document.getElementById('market-resolution-date').textContent = new Date(c.resolution_date).toLocaleDateString();
       document.getElementById('resolve-question').textContent = c.question;
 
       // Display criteria (handle both new and old format)
@@ -1071,13 +1070,6 @@
         // Old format - show same text for both
         document.getElementById('yes-criteria-display').textContent = c.resolution_criteria;
         document.getElementById('no-criteria-display').textContent = c.resolution_criteria;
-      }
-
-      // Pre-fill saved Lightning Address
-      const savedAddress = localStorage.getItem('lightning_address');
-      const addressInput = document.getElementById('payout-address-input');
-      if (savedAddress && !addressInput.value) {
-        addressInput.value = savedAddress;
       }
 
       // Calculate pools
@@ -1098,20 +1090,26 @@
         noPercent = 100 - yesPercent;
       }
 
+      // Calculate multipliers
+      currentMultipliers.yes = calculateMultiplier('yes', 100);
+      currentMultipliers.no = calculateMultiplier('no', 100);
+
       document.getElementById('total-pool').textContent = `₿${totalPool.toLocaleString()}`;
       document.getElementById('yes-percent').textContent = `${yesPercent}%`;
       document.getElementById('no-percent').textContent = `${noPercent}%`;
-      document.getElementById('yes-pool').textContent = `₿${yesPool.toLocaleString()}`;
-      document.getElementById('no-pool').textContent = `₿${noPool.toLocaleString()}`;
+      document.getElementById('yes-multiplier').textContent = `${currentMultipliers.yes.toFixed(1)}x`;
+      document.getElementById('no-multiplier').textContent = `${currentMultipliers.no.toFixed(1)}x`;
 
-      // Render bet list
+      // Render bet list (only show if there are bets)
+      const betListSection = document.getElementById('recent-bets-section');
       const betList = document.getElementById('bet-list');
       if (currentBets.length === 0) {
-        betList.innerHTML = '<p style="color: #888; text-align: center; padding: 8px 0;">Be the first to bet!</p>';
+        betListSection.classList.add('hidden');
       } else {
+        betListSection.classList.remove('hidden');
         betList.innerHTML = currentBets.slice(-10).reverse().map(b => `
           <div class="bet-item">
-            <span>${b.outcome.toUpperCase()}</span>
+            <span style="color: ${b.outcome === 'yes' ? '#4ade80' : '#f87171'};">${b.outcome.toUpperCase()}</span>
             <span>₿${b.amount_sats.toLocaleString()}</span>
           </div>
         `).join('');
@@ -1142,18 +1140,10 @@
     // ============================================
     // BETTING
     // ============================================
-    function updatePotentialWinnings() {
-      const betAmount = parseInt(document.getElementById('bet-amount-input').value) || 0;
-      const yesEl = document.getElementById('yes-potential');
-      const noEl = document.getElementById('no-potential');
+    let selectedOutcome = null;
+    let currentMultipliers = { yes: 1, no: 1 };
 
-      if (betAmount <= 0) {
-        yesEl.textContent = 'Enter amount above';
-        noEl.textContent = 'Enter amount above';
-        return;
-      }
-
-      // Get current pools
+    function calculateMultiplier(outcome, betAmount = 100) {
       let yesPool = 0;
       let noPool = 0;
       for (const bet of currentBets) {
@@ -1161,43 +1151,76 @@
         else if (bet.outcome === 'no') noPool += bet.amount_sats;
       }
 
-      // Calculate what you'd win betting on YES
-      // If you bet on YES: new yesPool = yesPool + betAmount
-      // If YES wins: you get (betAmount / newYesPool) * (totalPool - fee)
-      const newYesPool = yesPool + betAmount;
-      const yesFeeTarget = Math.floor((newYesPool + noPool) * FEE_PERCENT / 100);
-      const yesActualFee = Math.min(yesFeeTarget, noPool);
-      const yesWinTotal = (newYesPool + noPool) - yesActualFee;
-      const yesYourShare = Math.floor(betAmount / newYesPool * yesWinTotal);
-      const yesProfit = yesYourShare - betAmount;
-
-      // Calculate what you'd win betting on NO
-      const newNoPool = noPool + betAmount;
-      const noFeeTarget = Math.floor((yesPool + newNoPool) * FEE_PERCENT / 100);
-      const noActualFee = Math.min(noFeeTarget, yesPool);
-      const noWinTotal = (yesPool + newNoPool) - noActualFee;
-      const noYourShare = Math.floor(betAmount / newNoPool * noWinTotal);
-      const noProfit = noYourShare - betAmount;
-
-      // Display results
-      if (yesProfit > 0) {
-        yesEl.innerHTML = `<span style="color: #4ade80;">+₿${yesProfit.toLocaleString()}</span> <span style="color: #888;">(${(yesYourShare/betAmount).toFixed(2)}x)</span>`;
-      } else if (yesProfit === 0) {
-        yesEl.innerHTML = `<span style="color: #888;">Break even</span>`;
+      if (outcome === 'yes') {
+        const newYesPool = yesPool + betAmount;
+        const totalPool = newYesPool + noPool;
+        const feeTarget = Math.floor(totalPool * FEE_PERCENT / 100);
+        const actualFee = Math.min(feeTarget, noPool);
+        const winTotal = totalPool - actualFee;
+        const yourShare = betAmount / newYesPool * winTotal;
+        return yourShare / betAmount;
       } else {
-        yesEl.innerHTML = `<span style="color: #f87171;">₿${yesProfit.toLocaleString()}</span>`;
+        const newNoPool = noPool + betAmount;
+        const totalPool = yesPool + newNoPool;
+        const feeTarget = Math.floor(totalPool * FEE_PERCENT / 100);
+        const actualFee = Math.min(feeTarget, yesPool);
+        const winTotal = totalPool - actualFee;
+        const yourShare = betAmount / newNoPool * winTotal;
+        return yourShare / betAmount;
       }
-
-      if (noProfit > 0) {
-        noEl.innerHTML = `<span style="color: #4ade80;">+₿${noProfit.toLocaleString()}</span> <span style="color: #888;">(${(noYourShare/betAmount).toFixed(2)}x)</span>`;
-      } else if (noProfit === 0) {
-        noEl.innerHTML = `<span style="color: #888;">Break even</span>`;
-      } else {
-        noEl.innerHTML = `<span style="color: #f87171;">₿${noProfit.toLocaleString()}</span>`;
-      }
-
     }
-    window.updatePotentialWinnings = updatePotentialWinnings;
+
+    function selectOutcome(outcome) {
+      selectedOutcome = outcome;
+      const color = outcome === 'yes' ? '#4ade80' : '#f87171';
+      const multiplier = currentMultipliers[outcome];
+
+      document.getElementById('selected-outcome-display').textContent = outcome.toUpperCase();
+      document.getElementById('selected-outcome-display').style.color = color;
+      document.getElementById('selected-multiplier').textContent = `(${multiplier.toFixed(1)}x)`;
+
+      // Pre-fill saved Lightning Address
+      const savedAddress = localStorage.getItem('lightning_address');
+      const addressInput = document.getElementById('payout-address-input');
+      if (savedAddress && !addressInput.value) {
+        addressInput.value = savedAddress;
+      }
+
+      document.getElementById('bet-step-choose').classList.add('hidden');
+      document.getElementById('bet-step-details').classList.remove('hidden');
+      document.getElementById('bet-amount-input').focus();
+      updateWinPreview();
+    }
+    window.selectOutcome = selectOutcome;
+
+    function backToChoose() {
+      selectedOutcome = null;
+      document.getElementById('bet-step-details').classList.add('hidden');
+      document.getElementById('bet-step-choose').classList.remove('hidden');
+      hideBetError();
+    }
+    window.backToChoose = backToChoose;
+
+    function updateWinPreview() {
+      const betAmount = parseInt(document.getElementById('bet-amount-input').value) || 0;
+      const previewEl = document.getElementById('win-preview');
+
+      if (betAmount <= 0 || !selectedOutcome) {
+        previewEl.textContent = '';
+        return;
+      }
+
+      const multiplier = calculateMultiplier(selectedOutcome, betAmount);
+      const winAmount = Math.floor(betAmount * multiplier);
+      const profit = winAmount - betAmount;
+
+      if (profit > 0) {
+        previewEl.innerHTML = `You'd win <span style="color: #4ade80;">₿${profit.toLocaleString()}</span> profit`;
+      } else {
+        previewEl.textContent = 'Break even';
+      }
+    }
+    window.updateWinPreview = updateWinPreview;
 
     function checkQuestionFormat() {
       const input = document.getElementById('question-input').value.trim();
@@ -1221,8 +1244,13 @@
       document.getElementById('bet-error').classList.add('hidden');
     }
 
-    async function placeBet(outcome) {
-      debug('Placing bet on', outcome);
+    async function confirmBet() {
+      if (!selectedOutcome) {
+        showBetError('Please select YES or NO first');
+        return;
+      }
+
+      debug('Placing bet on', selectedOutcome);
       hideBetError();
 
       const payoutAddress = document.getElementById('payout-address-input').value.trim();
@@ -1230,7 +1258,7 @@
 
       // Require valid Lightning Address
       if (!payoutAddress || !payoutAddress.includes('@')) {
-        showBetError('Please enter a valid Lightning Address (e.g. you@wallet.com)');
+        showBetError('Please enter a valid Lightning Address (e.g. you@strike.me)');
         return;
       }
       // Save for next time
@@ -1252,19 +1280,20 @@
 
       // Generate invoice via NWC
       try {
-        document.getElementById('bet-form').classList.add('hidden');
-        document.getElementById('bet-invoice').classList.remove('hidden');
+        document.getElementById('bet-step-details').classList.add('hidden');
+        document.getElementById('bet-step-pay').classList.remove('hidden');
         document.getElementById('payment-status').textContent = 'Generating invoice...';
+        document.getElementById('invoice-amount').textContent = `₿${amount.toLocaleString()}`;
 
         const result = await nwcRequest('make_invoice', {
           amount: amount * 1000, // millisats
-          description: `Bet ₿${amount} on ${outcome.toUpperCase()} - ${currentMarket.content.question.slice(0, 50)}`
+          description: `Bet ₿${amount} on ${selectedOutcome.toUpperCase()} - ${currentMarket.content.question.slice(0, 50)}`
         });
 
         pendingInvoice = {
           paymentRequest: result.invoice,
           paymentHash: result.payment_hash,
-          outcome,
+          outcome: selectedOutcome,
           amount,
           payoutAddress,
           marketId: currentMarket.id,
@@ -1294,7 +1323,7 @@
         showBetError('Failed to create invoice: ' + e.message);
       }
     }
-    window.placeBet = placeBet;
+    window.confirmBet = confirmBet;
 
     let pollingInterval = null;
     let pollingAttempts = 0;
@@ -1515,8 +1544,8 @@
       await publishEvent(signedEvent);
 
       // Show confirmation with bet details
-      document.getElementById('bet-invoice').classList.add('hidden');
-      document.getElementById('bet-confirmed').classList.remove('hidden');
+      document.getElementById('bet-step-pay').classList.add('hidden');
+      document.getElementById('bet-step-confirmed').classList.remove('hidden');
 
       // Populate confirmation details
       const outcomeColor = pendingInvoice.outcome === 'yes' ? '#4ade80' : '#f87171';
@@ -1525,11 +1554,8 @@
       document.getElementById('confirmed-amount').textContent = `₿${pendingInvoice.amount.toLocaleString()}`;
 
       // Calculate potential payout
-      const currentYes = currentBets.filter(b => b.outcome === 'yes').reduce((sum, b) => sum + b.amount_sats, 0);
-      const currentNo = currentBets.filter(b => b.outcome === 'no').reduce((sum, b) => sum + b.amount_sats, 0);
-      const totalPool = currentYes + currentNo;
-      const myPool = pendingInvoice.outcome === 'yes' ? currentYes : currentNo;
-      const potentialPayout = Math.floor((totalPool * 0.95) * (pendingInvoice.amount / myPool));
+      const multiplier = calculateMultiplier(pendingInvoice.outcome, pendingInvoice.amount);
+      const potentialPayout = Math.floor(pendingInvoice.amount * multiplier);
       document.getElementById('confirmed-payout').textContent = `₿${potentialPayout.toLocaleString()}`;
 
       currentBets.push({ ...betContent, id: signedEvent.id });
@@ -1563,9 +1589,14 @@
     window.cancelBet = cancelBet;
 
     function resetBetForm() {
-      document.getElementById('bet-form').classList.remove('hidden');
-      document.getElementById('bet-invoice').classList.add('hidden');
-      document.getElementById('bet-confirmed').classList.add('hidden');
+      selectedOutcome = null;
+      document.getElementById('bet-step-choose').classList.remove('hidden');
+      document.getElementById('bet-step-details').classList.add('hidden');
+      document.getElementById('bet-step-pay').classList.add('hidden');
+      document.getElementById('bet-step-confirmed').classList.add('hidden');
+      document.getElementById('bet-amount-input').value = '';
+      document.getElementById('win-preview').textContent = '';
+      hideBetError();
     }
     window.resetBetForm = resetBetForm;
 
@@ -2077,7 +2108,7 @@
     // ============================================
     // VERSION CHECK
     // ============================================
-    const CURRENT_VERSION = '74';
+    const CURRENT_VERSION = '75';
 
     async function checkForUpdates() {
       try {
