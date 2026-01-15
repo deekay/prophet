@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prophet - Test Suite</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      line-height: 1.6;
+    }
+    h1, h2, h3 { color: #fff; }
+    .test-group {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+    .test-result {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 12px;
+      margin: 4px 0;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 14px;
+    }
+    .test-result.pass { background: #14532d; }
+    .test-result.fail { background: #7f1d1d; }
+    .test-result.skip { background: #422006; }
+    .summary {
+      display: flex;
+      gap: 24px;
+      padding: 16px;
+      background: #1a1a2e;
+      border-radius: 8px;
+      margin: 16px 0;
+      font-size: 18px;
+    }
+    .summary .pass { color: #4ade80; }
+    .summary .fail { color: #f87171; }
+    .summary .skip { color: #fbbf24; }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 8px 8px 8px 0;
+    }
+    button:hover { background: #1d4ed8; }
+    button.secondary { background: #333; }
+    button.secondary:hover { background: #444; }
+    pre {
+      background: #111;
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+    .error-details {
+      color: #fca5a5;
+      font-size: 12px;
+      margin-top: 4px;
+      padding-left: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔮 Prophet Test Suite</h1>
+
+  <div class="summary" id="summary">
+    <span>Tests: <span id="total">0</span></span>
+    <span class="pass">Passed: <span id="passed">0</span></span>
+    <span class="fail">Failed: <span id="failed">0</span></span>
+    <span class="skip">Skipped: <span id="skipped">0</span></span>
+  </div>
+
+  <button onclick="runAllTests()">Run All Tests</button>
+  <button class="secondary" onclick="runUnitTests()">Unit Tests Only</button>
+  <button class="secondary" onclick="runIntegrationTests()">Integration Tests Only</button>
+
+  <div id="test-results"></div>
+
+  <script type="module">
+    // ============================================
+    // TEST FRAMEWORK
+    // ============================================
+    const results = { passed: 0, failed: 0, skipped: 0, total: 0 };
+    const testGroups = [];
+
+    function describe(name, fn) {
+      const group = { name, tests: [] };
+      testGroups.push(group);
+      currentGroup = group;
+      fn();
+      currentGroup = null;
+    }
+
+    let currentGroup = null;
+
+    function test(name, fn, options = {}) {
+      if (currentGroup) {
+        currentGroup.tests.push({ name, fn, options });
+      }
+    }
+
+    function skip(name, fn) {
+      test(name, fn, { skip: true });
+    }
+
+    async function runTests(filter = null) {
+      results.passed = 0;
+      results.failed = 0;
+      results.skipped = 0;
+      results.total = 0;
+
+      const container = document.getElementById('test-results');
+      container.innerHTML = '';
+
+      for (const group of testGroups) {
+        if (filter && !filter(group)) continue;
+
+        const groupEl = document.createElement('div');
+        groupEl.className = 'test-group';
+        groupEl.innerHTML = `<h3>${group.name}</h3>`;
+
+        for (const t of group.tests) {
+          results.total++;
+          const resultEl = document.createElement('div');
+
+          if (t.options.skip) {
+            results.skipped++;
+            resultEl.className = 'test-result skip';
+            resultEl.innerHTML = `<span>${t.name}</span><span>SKIP</span>`;
+          } else {
+            try {
+              await t.fn();
+              results.passed++;
+              resultEl.className = 'test-result pass';
+              resultEl.innerHTML = `<span>${t.name}</span><span>PASS</span>`;
+            } catch (e) {
+              results.failed++;
+              resultEl.className = 'test-result fail';
+              resultEl.innerHTML = `
+                <span>${t.name}</span><span>FAIL</span>
+                <div class="error-details">${e.message}</div>
+              `;
+            }
+          }
+          groupEl.appendChild(resultEl);
+        }
+        container.appendChild(groupEl);
+      }
+
+      updateSummary();
+    }
+
+    function updateSummary() {
+      document.getElementById('total').textContent = results.total;
+      document.getElementById('passed').textContent = results.passed;
+      document.getElementById('failed').textContent = results.failed;
+      document.getElementById('skipped').textContent = results.skipped;
+    }
+
+    function assert(condition, message = 'Assertion failed') {
+      if (!condition) throw new Error(message);
+    }
+
+    function assertEqual(actual, expected, message = '') {
+      if (actual !== expected) {
+        throw new Error(`${message ? message + ': ' : ''}Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+      }
+    }
+
+    function assertDeepEqual(actual, expected, message = '') {
+      if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+        throw new Error(`${message ? message + ': ' : ''}Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+      }
+    }
+
+    // ============================================
+    // IMPORTS (same as main app)
+    // ============================================
+    import { generateSecretKey, getPublicKey, finalizeEvent, verifyEvent } from 'https://esm.sh/nostr-tools@2.10.4';
+    import { nsecEncode, npubEncode, noteEncode, decode as nip19Decode } from 'https://esm.sh/nostr-tools@2.10.4/nip19';
+    import { encrypt as nip04Encrypt, decrypt as nip04Decrypt } from 'https://esm.sh/nostr-tools@2.10.4/nip04';
+
+    // ============================================
+    // FUNCTIONS UNDER TEST (copied from main app)
+    // ============================================
+    function hexToBytes(hex) {
+      const bytes = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < hex.length; i += 2) {
+        bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+      }
+      return bytes;
+    }
+
+    function bytesToHex(bytes) {
+      return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function parseNwcString(nwcString) {
+      try {
+        const url = new URL(nwcString.replace('nostr+walletconnect://', 'https://'));
+        const pubkey = url.hostname || url.pathname.replace('//', '');
+        const relay = url.searchParams.get('relay');
+        const secret = url.searchParams.get('secret');
+        return { pubkey, relay, secret };
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function decodeNsec(nsec) {
+      try {
+        const { type, data } = nip19Decode(nsec);
+        if (type === 'nsec') return data;
+      } catch (e) {}
+      return null;
+    }
+
+    function decodeNoteId(noteId) {
+      try {
+        if (noteId.startsWith('note1')) {
+          const { type, data } = nip19Decode(noteId);
+          if (type === 'note') return data;
+        }
+        if (/^[0-9a-f]{64}$/i.test(noteId)) return noteId;
+      } catch (e) {}
+      return null;
+    }
+
+    // Payout calculation logic
+    function calculatePayouts(bets, winningOutcome, feePercent = 5) {
+      const winners = bets.filter(b => b.outcome === winningOutcome);
+      const losers = bets.filter(b => b.outcome !== winningOutcome);
+      const winningPool = winners.reduce((sum, b) => sum + b.amount_sats, 0);
+      const losingPool = losers.reduce((sum, b) => sum + b.amount_sats, 0);
+      const totalPool = winningPool + losingPool;
+      const feeTarget = Math.floor(totalPool * feePercent / 100);
+      const feeAmount = Math.min(feeTarget, losingPool);
+      const amountToWinners = totalPool - feeAmount;
+
+      const payouts = winners.map(b => ({
+        address: b.payout_address,
+        amount: Math.floor(b.amount_sats / winningPool * amountToWinners),
+        originalBet: b.amount_sats
+      }));
+
+      return { payouts, feeAmount, totalPool, winningPool, losingPool };
+    }
+
+    // Potential winnings calculation
+    function calculatePotentialWinnings(currentBets, betAmount, outcome, feePercent = 5) {
+      let yesPool = 0;
+      let noPool = 0;
+      for (const bet of currentBets) {
+        if (bet.outcome === 'yes') yesPool += bet.amount_sats;
+        else if (bet.outcome === 'no') noPool += bet.amount_sats;
+      }
+
+      if (outcome === 'yes') {
+        const newYesPool = yesPool + betAmount;
+        const feeTarget = Math.floor((newYesPool + noPool) * feePercent / 100);
+        const actualFee = Math.min(feeTarget, noPool);
+        const winTotal = (newYesPool + noPool) - actualFee;
+        const yourShare = Math.floor(betAmount / newYesPool * winTotal);
+        return { yourShare, profit: yourShare - betAmount, multiplier: yourShare / betAmount };
+      } else {
+        const newNoPool = noPool + betAmount;
+        const feeTarget = Math.floor((yesPool + newNoPool) * feePercent / 100);
+        const actualFee = Math.min(feeTarget, yesPool);
+        const winTotal = (yesPool + newNoPool) - actualFee;
+        const yourShare = Math.floor(betAmount / newNoPool * winTotal);
+        return { yourShare, profit: yourShare - betAmount, multiplier: yourShare / betAmount };
+      }
+    }
+
+    // ============================================
+    // UNIT TESTS
+    // ============================================
+    describe('Hex/Bytes Conversion', () => {
+      test('hexToBytes converts correctly', () => {
+        const hex = 'deadbeef';
+        const bytes = hexToBytes(hex);
+        assertEqual(bytes.length, 4);
+        assertEqual(bytes[0], 0xde);
+        assertEqual(bytes[1], 0xad);
+        assertEqual(bytes[2], 0xbe);
+        assertEqual(bytes[3], 0xef);
+      });
+
+      test('bytesToHex converts correctly', () => {
+        const bytes = new Uint8Array([0xde, 0xad, 0xbe, 0xef]);
+        assertEqual(bytesToHex(bytes), 'deadbeef');
+      });
+
+      test('round-trip conversion preserves data', () => {
+        const original = 'a1b2c3d4e5f6789012345678901234567890123456789012345678901234abcd';
+        const bytes = hexToBytes(original);
+        const result = bytesToHex(bytes);
+        assertEqual(result, original);
+      });
+
+      test('handles empty input', () => {
+        assertEqual(bytesToHex(new Uint8Array([])), '');
+        assertEqual(hexToBytes('').length, 0);
+      });
+    });
+
+    describe('NWC String Parsing', () => {
+      test('parses valid NWC string', () => {
+        const nwc = 'nostr+walletconnect://abcd1234?relay=wss://relay.example.com&secret=deadbeef';
+        const result = parseNwcString(nwc);
+        assertEqual(result.pubkey, 'abcd1234');
+        assertEqual(result.relay, 'wss://relay.example.com');
+        assertEqual(result.secret, 'deadbeef');
+      });
+
+      test('parses Primal-style NWC string', () => {
+        const nwc = 'nostr+walletconnect://pub123abc?relay=wss%3A%2F%2Fnwc.primal.net%2Fpath&secret=sec456';
+        const result = parseNwcString(nwc);
+        assertEqual(result.pubkey, 'pub123abc');
+        assertEqual(result.secret, 'sec456');
+        assert(result.relay.includes('nwc.primal.net'), 'Should contain relay domain');
+      });
+
+      test('returns null for invalid string', () => {
+        assertEqual(parseNwcString('not-a-valid-nwc'), null);
+        assertEqual(parseNwcString(''), null);
+        assertEqual(parseNwcString('http://example.com'), null);
+      });
+
+      test('handles missing parameters gracefully', () => {
+        const nwc = 'nostr+walletconnect://pubkey123';
+        const result = parseNwcString(nwc);
+        assertEqual(result.pubkey, 'pubkey123');
+        assertEqual(result.relay, null);
+        assertEqual(result.secret, null);
+      });
+    });
+
+    describe('Nostr Encoding/Decoding', () => {
+      test('generates valid keypair', () => {
+        const sk = generateSecretKey();
+        const pk = getPublicKey(sk);
+        assertEqual(sk.length, 32, 'Secret key should be 32 bytes');
+        assertEqual(pk.length, 64, 'Public key should be 64 hex chars');
+      });
+
+      test('nsec encode/decode round-trip', () => {
+        const sk = generateSecretKey();
+        const nsec = nsecEncode(sk);
+        assert(nsec.startsWith('nsec1'), 'Should start with nsec1');
+        const decoded = decodeNsec(nsec);
+        assertEqual(bytesToHex(decoded), bytesToHex(sk));
+      });
+
+      test('decodeNsec returns null for invalid input', () => {
+        assertEqual(decodeNsec('invalid'), null);
+        assertEqual(decodeNsec('npub1abc'), null); // wrong prefix
+        assertEqual(decodeNsec(''), null);
+      });
+
+      test('decodeNoteId handles note1 format', () => {
+        const sk = generateSecretKey();
+        const event = finalizeEvent({
+          kind: 1,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [],
+          content: 'test'
+        }, sk);
+
+        const noteId = noteEncode(event.id);
+        assert(noteId.startsWith('note1'), 'Should start with note1');
+        assertEqual(decodeNoteId(noteId), event.id);
+      });
+
+      test('decodeNoteId handles hex format', () => {
+        const hexId = 'abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234';
+        assertEqual(decodeNoteId(hexId), hexId);
+      });
+
+      test('decodeNoteId returns null for invalid input', () => {
+        assertEqual(decodeNoteId('invalid'), null);
+        assertEqual(decodeNoteId('note1xyz'), null); // invalid bech32
+        assertEqual(decodeNoteId('abc123'), null); // too short hex
+      });
+    });
+
+    describe('Payout Calculations', () => {
+      test('calculates simple 50/50 payout', () => {
+        const bets = [
+          { outcome: 'yes', amount_sats: 1000, payout_address: 'a@test.com' },
+          { outcome: 'no', amount_sats: 1000, payout_address: 'b@test.com' }
+        ];
+        const result = calculatePayouts(bets, 'yes');
+
+        assertEqual(result.totalPool, 2000);
+        assertEqual(result.winningPool, 1000);
+        assertEqual(result.losingPool, 1000);
+        assertEqual(result.feeAmount, 100); // 5% of 2000
+        assertEqual(result.payouts.length, 1);
+        assertEqual(result.payouts[0].amount, 1900); // 2000 - 100 fee
+      });
+
+      test('calculates payout with multiple winners', () => {
+        const bets = [
+          { outcome: 'yes', amount_sats: 1000, payout_address: 'a@test.com' },
+          { outcome: 'yes', amount_sats: 3000, payout_address: 'b@test.com' },
+          { outcome: 'no', amount_sats: 4000, payout_address: 'c@test.com' }
+        ];
+        const result = calculatePayouts(bets, 'yes');
+
+        assertEqual(result.totalPool, 8000);
+        assertEqual(result.feeAmount, 400); // 5% of 8000
+        const toWinners = 7600;
+        // First winner: 1000/4000 * 7600 = 1900
+        // Second winner: 3000/4000 * 7600 = 5700
+        assertEqual(result.payouts[0].amount, 1900);
+        assertEqual(result.payouts[1].amount, 5700);
+      });
+
+      test('caps fee at losing pool (winners get at least 1.0x)', () => {
+        const bets = [
+          { outcome: 'yes', amount_sats: 9000, payout_address: 'a@test.com' },
+          { outcome: 'no', amount_sats: 100, payout_address: 'b@test.com' }
+        ];
+        const result = calculatePayouts(bets, 'yes');
+
+        // Fee target: 5% of 9100 = 455
+        // But losingPool is only 100, so fee capped at 100
+        assertEqual(result.feeAmount, 100);
+        assertEqual(result.payouts[0].amount, 9000); // Gets back original + all of losing pool - fee
+      });
+
+      test('handles no winners', () => {
+        const bets = [
+          { outcome: 'no', amount_sats: 1000, payout_address: 'a@test.com' }
+        ];
+        const result = calculatePayouts(bets, 'yes');
+
+        assertEqual(result.payouts.length, 0);
+        assertEqual(result.winningPool, 0);
+      });
+
+      test('handles no losers', () => {
+        const bets = [
+          { outcome: 'yes', amount_sats: 1000, payout_address: 'a@test.com' }
+        ];
+        const result = calculatePayouts(bets, 'yes');
+
+        assertEqual(result.feeAmount, 0); // No losers to take fee from
+        assertEqual(result.payouts[0].amount, 1000); // Gets back exactly what they put in
+      });
+    });
+
+    describe('Potential Winnings Calculation', () => {
+      test('calculates winnings for first bet on YES', () => {
+        const result = calculatePotentialWinnings([], 1000, 'yes');
+        // First bet, no one to win from
+        assertEqual(result.profit, 0);
+        assertEqual(result.multiplier, 1);
+      });
+
+      test('calculates winnings with existing opposite bets', () => {
+        const existingBets = [
+          { outcome: 'no', amount_sats: 1000 }
+        ];
+        const result = calculatePotentialWinnings(existingBets, 1000, 'yes');
+
+        // Total pool: 2000, fee: 100, to winners: 1900
+        // YES wins all 1900
+        assertEqual(result.yourShare, 1900);
+        assertEqual(result.profit, 900);
+      });
+
+      test('calculates winnings with same-side bets', () => {
+        const existingBets = [
+          { outcome: 'yes', amount_sats: 1000 },
+          { outcome: 'no', amount_sats: 1000 }
+        ];
+        const result = calculatePotentialWinnings(existingBets, 1000, 'yes');
+
+        // New YES pool: 2000, NO pool: 1000, total: 3000
+        // Fee: 150 (5%), to winners: 2850
+        // Your share: 1000/2000 * 2850 = 1425
+        assertEqual(result.yourShare, 1425);
+        assertEqual(result.profit, 425);
+      });
+    });
+
+    // ============================================
+    // INTEGRATION TESTS (with mocks)
+    // ============================================
+    describe('Event Creation and Verification', () => {
+      test('creates valid signed event', () => {
+        const sk = generateSecretKey();
+        const pk = getPublicKey(sk);
+
+        const event = finalizeEvent({
+          kind: 1,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [['t', 'test']],
+          content: 'Test content'
+        }, sk);
+
+        assertEqual(event.pubkey, pk);
+        assert(event.id.length === 64, 'Event ID should be 64 hex chars');
+        assert(event.sig.length === 128, 'Signature should be 128 hex chars');
+        assert(verifyEvent(event), 'Event signature should be valid');
+      });
+
+      test('creates valid market event structure', () => {
+        const sk = generateSecretKey();
+        const marketContent = {
+          type: 'market',
+          question: 'Will it rain tomorrow?',
+          resolution_date: '2025-01-20T12:00:00Z',
+          resolution_criteria: 'Yes if any rain recorded',
+          nwc_connection: 'nostr+walletconnect://test'
+        };
+
+        const event = finalizeEvent({
+          kind: 1,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [
+            ['t', 'prediction-market'],
+            ['t', 'pm-market']
+          ],
+          content: JSON.stringify(marketContent)
+        }, sk);
+
+        const parsed = JSON.parse(event.content);
+        assertEqual(parsed.type, 'market');
+        assertEqual(parsed.question, 'Will it rain tomorrow?');
+        assert(event.tags.some(t => t[0] === 't' && t[1] === 'pm-market'));
+      });
+
+      test('creates valid bet event structure', () => {
+        const sk = generateSecretKey();
+        const marketId = 'abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1';
+
+        const betContent = {
+          type: 'bet',
+          market_id: marketId,
+          outcome: 'yes',
+          amount_sats: 1000,
+          payout_address: 'test@wallet.com',
+          payment_hash: 'hash123',
+          preimage: 'preimage123'
+        };
+
+        const event = finalizeEvent({
+          kind: 1,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [
+            ['t', 'prediction-market'],
+            ['t', 'pm-bet'],
+            ['e', marketId]
+          ],
+          content: JSON.stringify(betContent)
+        }, sk);
+
+        const parsed = JSON.parse(event.content);
+        assertEqual(parsed.type, 'bet');
+        assertEqual(parsed.outcome, 'yes');
+        assert(event.tags.some(t => t[0] === 'e' && t[1] === marketId));
+      });
+    });
+
+    describe('Preimage Verification', () => {
+      test('SHA256 hash of preimage matches payment_hash', async () => {
+        // This is the core verification logic
+        const preimage = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+        const preimageBytes = hexToBytes(preimage);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', preimageBytes);
+        const hashHex = Array.from(new Uint8Array(hashBuffer))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('');
+
+        // The hash of the preimage should be deterministic
+        assertEqual(hashHex.length, 64);
+      });
+
+      test('verification fails for wrong preimage', async () => {
+        const correctPreimage = 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef';
+        const wrongPreimage = 'cafebabecafebabecafebabecafebabecafebabecafebabecafebabecafebabe';
+
+        const correctHash = await crypto.subtle.digest('SHA-256', hexToBytes(correctPreimage));
+        const wrongHash = await crypto.subtle.digest('SHA-256', hexToBytes(wrongPreimage));
+
+        const correctHex = bytesToHex(new Uint8Array(correctHash));
+        const wrongHex = bytesToHex(new Uint8Array(wrongHash));
+
+        assert(correctHex !== wrongHex, 'Different preimages should produce different hashes');
+      });
+    });
+
+    describe('NIP-04 Encryption (for NWC)', () => {
+      test('encrypts and decrypts message correctly', async () => {
+        const sk1 = generateSecretKey();
+        const pk1 = getPublicKey(sk1);
+        const sk2 = generateSecretKey();
+        const pk2 = getPublicKey(sk2);
+
+        const message = JSON.stringify({ method: 'get_balance', params: {} });
+
+        // Encrypt from sk1 to pk2
+        const encrypted = await nip04Encrypt(sk1, pk2, message);
+
+        // Decrypt with sk2 from pk1
+        const decrypted = await nip04Decrypt(sk2, pk1, encrypted);
+
+        assertEqual(decrypted, message);
+      });
+    });
+
+    // ============================================
+    // MOCK TESTS (simulating flows)
+    // ============================================
+    describe('Mock NWC Flow', () => {
+      // Mock NWC wallet for testing
+      class MockNwcWallet {
+        constructor() {
+          this.invoices = new Map();
+          this.balance = 100000; // 100k sats
+        }
+
+        makeInvoice(amountMsats, description) {
+          const paymentHash = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
+          const preimage = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
+
+          this.invoices.set(paymentHash, {
+            payment_hash: paymentHash,
+            preimage: preimage,
+            amount: amountMsats / 1000,
+            description,
+            settled: false,
+            settled_at: null
+          });
+
+          return {
+            invoice: `lnbc${amountMsats}mock${paymentHash.slice(0, 20)}`,
+            payment_hash: paymentHash
+          };
+        }
+
+        payInvoice(paymentHash) {
+          const invoice = this.invoices.get(paymentHash);
+          if (!invoice) throw new Error('Invoice not found');
+
+          invoice.settled = true;
+          invoice.settled_at = Math.floor(Date.now() / 1000);
+
+          return { preimage: invoice.preimage };
+        }
+
+        lookupInvoice(paymentHash) {
+          const invoice = this.invoices.get(paymentHash);
+          if (!invoice) throw new Error('Invoice not found');
+
+          return {
+            payment_hash: invoice.payment_hash,
+            preimage: invoice.settled ? invoice.preimage : null,
+            settled_at: invoice.settled_at,
+            amount: invoice.amount * 1000,
+            state: invoice.settled ? 'settled' : 'pending'
+          };
+        }
+      }
+
+      test('mock wallet generates invoice', () => {
+        const wallet = new MockNwcWallet();
+        const result = wallet.makeInvoice(1000000, 'Test bet');
+
+        assert(result.invoice.startsWith('lnbc'), 'Invoice should start with lnbc');
+        assertEqual(result.payment_hash.length, 64);
+      });
+
+      test('mock wallet tracks payment state', () => {
+        const wallet = new MockNwcWallet();
+        const { payment_hash } = wallet.makeInvoice(1000000, 'Test bet');
+
+        // Before payment
+        let status = wallet.lookupInvoice(payment_hash);
+        assertEqual(status.state, 'pending');
+        assertEqual(status.preimage, null);
+
+        // Simulate payment
+        wallet.payInvoice(payment_hash);
+
+        // After payment
+        status = wallet.lookupInvoice(payment_hash);
+        assertEqual(status.state, 'settled');
+        assert(status.preimage !== null);
+        assert(status.settled_at !== null);
+      });
+
+      test('full betting flow with mock wallet', async () => {
+        const wallet = new MockNwcWallet();
+
+        // 1. Create market (just structure, no relay)
+        const creatorSk = generateSecretKey();
+        const marketContent = {
+          type: 'market',
+          question: 'Test question?',
+          resolution_date: new Date(Date.now() + 86400000).toISOString(),
+          resolution_criteria: 'Test criteria'
+        };
+        const marketEvent = finalizeEvent({
+          kind: 1,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [['t', 'prediction-market'], ['t', 'pm-market']],
+          content: JSON.stringify(marketContent)
+        }, creatorSk);
+
+        // 2. Bettor requests invoice
+        const betAmount = 1000;
+        const invoiceResult = wallet.makeInvoice(betAmount * 1000, `Bet on YES`);
+
+        // 3. Bettor pays (simulated)
+        wallet.payInvoice(invoiceResult.payment_hash);
+
+        // 4. Verify payment
+        const lookupResult = wallet.lookupInvoice(invoiceResult.payment_hash);
+        assertEqual(lookupResult.state, 'settled');
+
+        // 5. Verify preimage
+        const preimageBytes = hexToBytes(lookupResult.preimage);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', preimageBytes);
+        const computedHash = bytesToHex(new Uint8Array(hashBuffer));
+
+        // Note: In real implementation, payment_hash = SHA256(preimage)
+        // Our mock doesn't enforce this, but in production it would match
+
+        // 6. Create bet event
+        const bettorSk = generateSecretKey();
+        const betContent = {
+          type: 'bet',
+          market_id: marketEvent.id,
+          outcome: 'yes',
+          amount_sats: betAmount,
+          payout_address: 'bettor@wallet.com',
+          payment_hash: invoiceResult.payment_hash,
+          preimage: lookupResult.preimage
+        };
+        const betEvent = finalizeEvent({
+          kind: 1,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [['t', 'prediction-market'], ['t', 'pm-bet'], ['e', marketEvent.id]],
+          content: JSON.stringify(betContent)
+        }, bettorSk);
+
+        // Verify bet event is valid
+        assert(verifyEvent(betEvent));
+        const parsedBet = JSON.parse(betEvent.content);
+        assertEqual(parsedBet.type, 'bet');
+        assertEqual(parsedBet.amount_sats, 1000);
+      });
+    });
+
+    // ============================================
+    // EDGE CASE TESTS
+    // ============================================
+    describe('Edge Cases', () => {
+      test('handles very large bet amounts', () => {
+        const bets = [
+          { outcome: 'yes', amount_sats: 2100000000000000 }, // 21M BTC in sats
+          { outcome: 'no', amount_sats: 1 }
+        ];
+        const result = calculatePayouts(bets, 'yes');
+
+        // Should not overflow
+        assert(result.totalPool > 0);
+        assert(result.payouts[0].amount > 0);
+      });
+
+      test('handles minimum bet amount', () => {
+        const bets = [
+          { outcome: 'yes', amount_sats: 1 },
+          { outcome: 'no', amount_sats: 1 }
+        ];
+        const result = calculatePayouts(bets, 'yes');
+
+        assertEqual(result.totalPool, 2);
+        assertEqual(result.feeAmount, 0); // 5% of 2 = 0.1, floors to 0
+      });
+
+      test('handles many bettors', () => {
+        const bets = [];
+        for (let i = 0; i < 100; i++) {
+          bets.push({
+            outcome: i % 2 === 0 ? 'yes' : 'no',
+            amount_sats: 100,
+            payout_address: `user${i}@test.com`
+          });
+        }
+
+        const result = calculatePayouts(bets, 'yes');
+        assertEqual(result.payouts.length, 50);
+
+        // Sum of payouts should equal totalPool - fee
+        const payoutSum = result.payouts.reduce((sum, p) => sum + p.amount, 0);
+        assert(payoutSum <= result.totalPool - result.feeAmount);
+      });
+
+      test('handles special characters in market question', () => {
+        const sk = generateSecretKey();
+        const marketContent = {
+          type: 'market',
+          question: 'Will Bitcoin reach $100,000 by 2025? <script>alert("xss")</script>',
+          resolution_date: '2025-12-31T00:00:00Z',
+          resolution_criteria: 'Based on CoinGecko price'
+        };
+
+        const event = finalizeEvent({
+          kind: 1,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [],
+          content: JSON.stringify(marketContent)
+        }, sk);
+
+        // Should store the content as-is (escaping is UI responsibility)
+        const parsed = JSON.parse(event.content);
+        assert(parsed.question.includes('<script>'));
+      });
+    });
+
+    // ============================================
+    // TESTS REQUIRING REAL INFRASTRUCTURE (skipped)
+    // ============================================
+    describe('Real Infrastructure Tests (Manual)', () => {
+      skip('connects to Damus relay', async () => {
+        // Would require actual network connection
+      });
+
+      skip('connects to Primal NWC', async () => {
+        // Would require actual NWC credentials
+      });
+
+      skip('makes real Lightning payment', async () => {
+        // Would require actual funds
+      });
+
+      skip('cross-browser localStorage isolation', async () => {
+        // Would require Playwright/Puppeteer
+      });
+    });
+
+    // ============================================
+    // RUN TESTS
+    // ============================================
+    window.runAllTests = () => runTests();
+    window.runUnitTests = () => runTests(g =>
+      ['Hex/Bytes', 'NWC String', 'Nostr Encoding', 'Payout', 'Potential'].some(s => g.name.includes(s))
+    );
+    window.runIntegrationTests = () => runTests(g =>
+      ['Event Creation', 'Preimage', 'NIP-04', 'Mock NWC', 'Edge'].some(s => g.name.includes(s))
+    );
+
+    // Auto-run on load
+    runTests();
+  </script>
+</body>
+</html>

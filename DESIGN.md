@@ -1,6 +1,6 @@
-# Decentralized Prediction Markets
+# Prophet - Decentralized Prediction Markets
 
-A decentralized prediction market infrastructure using Nostr for data and Lightning for payments.
+🔮 A decentralized prediction market platform using Nostr for data and Lightning for payments.
 
 ---
 

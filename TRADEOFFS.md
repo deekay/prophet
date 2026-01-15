@@ -1,4 +1,4 @@
-# Payment Verification Tradeoffs
+# Prophet - Payment Verification Tradeoffs
 
 ## The Core Problem
 

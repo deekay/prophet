@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Prediction Markets</title>
+  <title>Prophet - Prediction Markets on Lightning</title>
   <style>
     * {
       box-sizing: border-box;
@@ -125,10 +125,6 @@
       background: #14532d;
       border: 1px solid #16a34a;
     }
-    .status.error {
-      background: #450a0a;
-      border: 1px solid #dc2626;
-    }
     .status.warning {
       background: #422006;
       border: 1px solid #d97706;
@@ -140,8 +136,10 @@
       border-radius: 8px;
       margin: 16px 0;
     }
-    .qr-container img {
-      max-width: 200px;
+    .qr-container img, .qr-container canvas {
+      max-width: 100%;
+      width: 200px;
+      height: auto;
     }
     .invoice-text {
       font-family: monospace;
@@ -205,14 +203,19 @@
   </style>
 </head>
 <body>
+  <!-- Update banner (hidden by default) -->
+  <div id="update-banner" style="display: none; background: linear-gradient(135deg, #1e40af, #7c3aed); padding: 10px 16px; text-align: center; cursor: pointer; font-size: 14px;" onclick="location.reload()">
+    🔮 New version available! <strong>Click to refresh</strong>
+  </div>
+
   <!-- Header with logo -->
   <header style="padding: 12px 0; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-    <div onclick="showView('home-view')" style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
-      <div style="width: 32px; height: 32px; background: linear-gradient(135deg, #f7931a, #ff6b00); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white;">PM</div>
-      <span style="font-size: 16px; font-weight: 600; color: #ccc;">Prediction Markets</span>
+    <div onclick="showView('home-view')" style="cursor: pointer; display: flex; align-items: center; gap: 8px;" role="button" aria-label="Go to home" tabindex="0">
+      <div style="font-size: 24px; line-height: 1;" aria-hidden="true">🔮</div>
+      <span style="font-size: 18px; font-weight: 600; color: #fff;">Prophet</span>
     </div>
-    <div onclick="showView('creator-view')" style="cursor: pointer; padding: 8px; border-radius: 6px; background: #222;" title="Creator Dashboard">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <div onclick="showView('creator-view')" style="cursor: pointer; padding: 8px; border-radius: 6px; background: #222;" title="Creator Dashboard" role="button" aria-label="Creator Dashboard" tabindex="0">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
         <circle cx="12" cy="7" r="4"></circle>
       </svg>
@@ -223,16 +226,16 @@
   <div id="loading-view" class="view">
     <div style="text-align: center; padding: 60px 20px;">
       <div class="loader" style="margin: 0 auto;"></div>
-      <p style="margin-top: 20px; color: #888;">Fetching market from Nostr relays...</p>
+      <p style="margin-top: 20px; color: #888;">Fetching prophecy from Nostr relays...</p>
     </div>
   </div>
 
   <!-- Home View -->
   <div id="home-view" class="view active">
-    <h1>Prediction Markets</h1>
-    <p>Create and bet on predictions using Bitcoin. No accounts, no servers.</p>
+    <h1>🔮 Prophet</h1>
+    <p>Prediction markets on Bitcoin Lightning. No accounts, no servers.</p>
 
-    <button id="btn-create-view">Create a Market</button>
+    <button id="btn-create-view">Create a Prophecy</button>
 
     <div class="card">
       <h3>How it works</h3>
@@ -243,35 +246,35 @@
 
   <!-- Create Market View -->
   <div id="create-view" class="view">
-    <h2>Create a Market</h2>
+    <h2>Create a Prophecy</h2>
 
     <div id="create-step-1">
-      <label>NWC Connection String</label>
-      <input type="text" id="nwc-input" placeholder="nostr+walletconnect://..." />
+      <label for="nwc-input">NWC Connection String</label>
+      <input type="text" id="nwc-input" placeholder="nostr+walletconnect://..." autocomplete="off" />
       <p style="color: #888; font-size: 14px;">Get this from your NWC wallet (Alby Hub, Primal, etc.)</p>
 
-      <label>Question</label>
+      <label for="question-input">Question</label>
       <input type="text" id="question-input" placeholder="Will X happen by Y date?" />
 
-      <label>Resolution Date</label>
+      <label for="resolution-date-input">Resolution Date</label>
       <input type="datetime-local" id="resolution-date-input" />
 
-      <label>Resolution Criteria</label>
+      <label for="criteria-input">Resolution Criteria</label>
       <textarea id="criteria-input" rows="3" placeholder="Yes if... No if..."></textarea>
 
-      <label>Max Bet (₿, optional)</label>
+      <label for="max-bet-input">Max Bet (₿, optional)</label>
       <input type="number" id="max-bet-input" placeholder="10000" />
 
-      <button id="btn-create-market">Create Market</button>
-      <div id="create-status" class="hidden" style="text-align: center; padding: 20px;">
-        <div class="loader"></div>
+      <button id="btn-create-market">Create Prophecy</button>
+      <div id="create-status" class="hidden" style="text-align: center; padding: 20px;" role="status" aria-live="polite">
+        <div class="loader" aria-hidden="true"></div>
         <p id="create-status-text" style="margin-top: 12px; color: #888;">Publishing to Nostr relays...</p>
       </div>
       <button id="btn-cancel-create" class="secondary">Cancel</button>
     </div>
 
     <div id="create-step-2" class="hidden">
-      <div class="status success">Market created!</div>
+      <div class="status success">Prophecy created!</div>
 
       <div id="market-summary" style="background: #1a1a2e; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
         <h3 id="summary-question" style="margin: 0 0 12px 0; color: #fff;"></h3>
@@ -280,7 +283,7 @@
 
       <div class="nsec-warning">
         <strong>Save this secret key!</strong>
-        <p>You need it to resolve the market later. Store it securely.</p>
+        <p>You need it to resolve the prophecy later. Store it securely.</p>
         <div class="nsec-display" id="nsec-display"></div>
         <button onclick="copyNsec()">Copy to Clipboard</button>
       </div>
@@ -288,7 +291,7 @@
       <label>Share this link:</label>
       <input type="text" id="share-url" readonly />
       <button onclick="copyShareUrl()">Copy Link</button>
-      <button class="secondary" onclick="goToMarket()">Go to Market</button>
+      <button class="secondary" onclick="goToMarket()">Go to Prophecy</button>
     </div>
   </div>
 
@@ -315,11 +318,11 @@
 
     <div id="betting-open">
       <div id="bet-form">
-        <label>Your Lightning Address *</label>
-        <input type="text" id="payout-address-input" placeholder="you@walletofsatoshi.com" required />
+        <label for="payout-address-input">Your Lightning Address *</label>
+        <input type="text" id="payout-address-input" placeholder="you@walletofsatoshi.com" required autocomplete="email" />
         <p style="font-size: 12px; color: #888; margin: 4px 0 12px 0;">Where to send your winnings if you win.</p>
 
-        <label>Bet Amount (₿)</label>
+        <label for="bet-amount-input">Bet Amount (₿)</label>
         <input type="number" id="bet-amount-input" placeholder="500" oninput="updatePotentialWinnings()" />
 
         <div id="potential-winnings" style="background: #1a1a2e; border-radius: 8px; padding: 12px; margin: 12px 0; font-size: 14px;">
@@ -347,7 +350,7 @@
         <div class="qr-container" id="qr-container">
         </div>
 
-        <div id="auto-verify-section" style="margin-top: 16px; padding: 16px; background: #1a2a1a; border: 1px solid #4a4; border-radius: 8px; text-align: center;">
+        <div id="auto-verify-section" style="margin-top: 16px; padding: 16px; background: #1a2a1a; border: 1px solid #4a4; border-radius: 8px; text-align: center;" role="status" aria-live="polite">
           <p id="payment-status" style="color: #6c6; margin: 0 0 8px 0; font-weight: bold; font-size: 15px;">Waiting for payment...</p>
           <p style="color: #888; margin: 0; font-size: 13px;">Payment will be verified automatically</p>
         </div>
@@ -382,7 +385,7 @@
     </div>
 
     <div id="betting-closed" class="hidden">
-      <div class="status warning">Betting is closed. Awaiting resolution.</div>
+      <div class="status warning">Betting is closed. Awaiting revelation.</div>
     </div>
 
     <div id="market-resolved" class="hidden">
@@ -394,7 +397,7 @@
     <div class="card">
       <h3>Recent Bets</h3>
       <div id="bet-list" class="bet-list">
-        <p style="color: #666;">No bets yet</p>
+        <p style="color: #888; text-align: center; padding: 8px 0;">Be the first to bet!</p>
       </div>
     </div>
 
@@ -405,9 +408,9 @@
     <h2>Creator Dashboard</h2>
 
     <div id="creator-login">
-      <p style="color: #aaa; margin-bottom: 16px;">Enter your nsec to view and manage your markets.</p>
-      <label>Your nsec (secret key)</label>
-      <input type="password" id="creator-nsec-input" placeholder="nsec1..." />
+      <p style="color: #aaa; margin-bottom: 16px;">Enter your nsec to view and manage your prophecies.</p>
+      <label for="creator-nsec-input">Your nsec (secret key)</label>
+      <input type="password" id="creator-nsec-input" placeholder="nsec1..." autocomplete="off" />
       <button onclick="creatorLogin()">Login</button>
     </div>
 
@@ -417,7 +420,7 @@
         <button class="secondary" onclick="creatorLogout()" style="padding: 6px 12px; font-size: 12px;">Logout</button>
       </div>
 
-      <h3>Your Markets</h3>
+      <h3>Your Prophecies</h3>
       <div id="creator-markets-list">
         <p style="color: #666;">Loading...</p>
       </div>
@@ -426,11 +429,11 @@
 
   <!-- Resolve View -->
   <div id="resolve-view" class="view">
-    <h2>Resolve Market</h2>
+    <h2>Resolve Prophecy</h2>
     <p id="resolve-question"></p>
 
-    <label>Your nsec (secret key)</label>
-    <input type="password" id="resolve-nsec-input" placeholder="nsec1..." />
+    <label for="resolve-nsec-input">Your nsec (secret key)</label>
+    <input type="password" id="resolve-nsec-input" placeholder="nsec1..." autocomplete="off" />
 
     <div id="resolve-form">
       <p>Select the winning outcome:</p>
@@ -439,7 +442,7 @@
     </div>
 
     <div id="payout-section" class="hidden">
-      <div class="status success">Market resolved!</div>
+      <div class="status success">Prophecy resolved!</div>
       <h3>Payouts</h3>
       <div id="payout-list"></div>
       <button id="btn-pay-winners" onclick="payAllWinners()">Pay All Winners</button>
@@ -450,9 +453,8 @@
   </div>
 
   <footer>
-    <p>Powered by Nostr + Lightning</p>
-    <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v43</p>
+    <p>Prophet - Powered by Nostr + Lightning</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v46</p>
   </footer>
 
   <!-- Scripts -->
@@ -477,9 +479,10 @@
     const FEE_PERCENT = 5;
 
     function debug(...args) {
-      if (DEBUG) debug(...args);
+      if (DEBUG) console.log(...args);
     }
 
+    // Global state
     let relayConnections = [];
     let currentMarket = null;
     let currentBets = [];
@@ -839,7 +842,7 @@
       const published = await publishEvent(signedEvent);
       if (!published) {
         setCreateStatus(false);
-        alert('Failed to publish market');
+        alert('Failed to publish prophecy');
         return;
       }
       debug('Event published!');
@@ -875,7 +878,7 @@
       } catch (e) {
         console.error('Error creating market:', e);
         setCreateStatus(false);
-        alert('Error creating market: ' + e.message);
+        alert('Error creating prophecy: ' + e.message);
       }
     }
     window.createMarket = createMarket;
@@ -904,7 +907,7 @@
       // If it's already a hex event ID (64 chars), use it directly
       const eventId = marketId.length === 64 && /^[a-f0-9]+$/.test(marketId) ? marketId : decodeNoteId(marketId);
       if (!eventId) {
-        alert('Invalid market ID');
+        alert('Invalid prophecy ID');
         return;
       }
       await loadMarket(eventId);
@@ -932,7 +935,7 @@
       debug('Market events found:', marketEvents.length);
 
       if (marketEvents.length === 0) {
-        alert('Market not found. Check console for details.');
+        alert('Prophecy not found. Check console for details.');
         return;
       }
 
@@ -942,7 +945,7 @@
         content = JSON.parse(marketEvent.content);
         if (content.type !== 'market') throw new Error('Not a market event');
       } catch (e) {
-        alert('Invalid market event');
+        alert('Invalid prophecy event');
         return;
       }
 
@@ -1033,7 +1036,7 @@
       // Render bet list
       const betList = document.getElementById('bet-list');
       if (currentBets.length === 0) {
-        betList.innerHTML = '<p style="color: #666;">No bets yet</p>';
+        betList.innerHTML = '<p style="color: #888; text-align: center; padding: 8px 0;">Be the first to bet!</p>';
       } else {
         betList.innerHTML = currentBets.slice(-10).reverse().map(b => `
           <div class="bet-item">
@@ -1159,7 +1162,7 @@
 
       // Check if we have NWC for this market
       if (!creatorNwcString) {
-        showBetError('This market cannot accept bets (creator wallet not connected)');
+        showBetError('This prophecy cannot accept bets (creator wallet not connected)');
         return;
       }
 
@@ -1625,7 +1628,7 @@
         });
 
         if (markets.length === 0) {
-          listEl.innerHTML = '<p style="color: #666;">No markets found for this account.</p>';
+          listEl.innerHTML = '<p style="color: #666;">No prophecies found for this account.</p>';
           return;
         }
 
@@ -1654,7 +1657,7 @@
 
       } catch (e) {
         console.error('Error loading creator markets:', e);
-        listEl.innerHTML = '<p style="color: #f87171;">Error loading markets</p>';
+        listEl.innerHTML = '<p style="color: #f87171;">Error loading prophecies</p>';
       }
     }
 
@@ -1690,7 +1693,7 @@
 
       const pk = getPublicKey(sk);
       if (pk !== currentMarket.pubkey) {
-        alert('This nsec does not match the market creator');
+        alert('This nsec does not match the prophecy creator');
         return;
       }
 
@@ -1965,6 +1968,36 @@
       // Connect to relays in background
       connectRelays();
     }
+
+    // ============================================
+    // VERSION CHECK
+    // ============================================
+    const CURRENT_VERSION = '46';
+
+    async function checkForUpdates() {
+      try {
+        const response = await fetch('version.txt?t=' + Date.now());
+        const latestVersion = (await response.text()).trim();
+        if (latestVersion !== CURRENT_VERSION) {
+          document.getElementById('update-banner').style.display = 'block';
+        }
+      } catch (e) {
+        // Silently fail - not critical
+      }
+    }
+
+    // Check for updates every 5 minutes
+    setInterval(checkForUpdates, 5 * 60 * 1000);
+
+    // Also check when tab becomes visible
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        checkForUpdates();
+      }
+    });
+
+    // Initial check after 10 seconds (let app load first)
+    setTimeout(checkForUpdates, 10000);
 
     // Start
     console.log('Module loaded successfully');
