@@ -233,7 +233,6 @@
     <p>Create and bet on predictions using Bitcoin. No accounts, no servers.</p>
 
     <button id="btn-create-view">Create a Market</button>
-    <button id="btn-load-view" class="secondary">Load a Market</button>
 
     <div class="card">
       <h3>How it works</h3>
@@ -291,20 +290,6 @@
       <button onclick="copyShareUrl()">Copy Link</button>
       <button class="secondary" onclick="goToMarket()">Go to Market</button>
     </div>
-  </div>
-
-  <!-- Load Market View -->
-  <div id="load-view" class="view">
-    <h2>Load a Market</h2>
-    <p style="color: #888;">Paste a market URL or ID that was shared with you.</p>
-    <label>Market URL or ID</label>
-    <input type="text" id="market-id-input" placeholder="https://...?m=note1... or note1..." />
-    <button id="btn-load-market">Load Market</button>
-    <div id="load-status" class="hidden" style="text-align: center; padding: 20px;">
-      <div class="loader"></div>
-      <p style="margin-top: 12px; color: #888;">Fetching from Nostr relays...</p>
-    </div>
-    <button id="btn-back-load" class="secondary">Back</button>
   </div>
 
   <!-- Market View (Betting) -->
@@ -374,15 +359,6 @@
               <button id="btn-webln-pay" onclick="payWithWebLN()">Pay with Browser Wallet</button>
               <p style="color: #666; font-size: 12px; margin-top: 4px;">For Alby and other WebLN wallets</p>
             </div>
-          </div>
-        </details>
-
-        <details id="manual-preimage-section" style="margin-top: 16px;">
-          <summary style="cursor: pointer; color: #666; font-size: 13px;">Payment not detected? Verify manually</summary>
-          <div style="margin-top: 12px; padding: 12px; background: #1a1a1a; border-radius: 6px;">
-            <p style="color: #aaa; margin: 0 0 12px 0; font-size: 13px;">Find the preimage in your wallet's transaction details and paste it below.</p>
-            <input type="text" id="preimage-input" placeholder="Preimage from your wallet (hex)" />
-            <button onclick="verifyPreimage()">Verify Payment</button>
           </div>
         </details>
 
@@ -470,7 +446,7 @@
   <footer>
     <p>Powered by Nostr + Lightning</p>
     <p>Data stored on: relay.damus.io, relay.primal.net</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v41</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v42</p>
   </footer>
 
   <!-- Scripts -->
@@ -487,11 +463,16 @@
     // ============================================
     // GLOBALS
     // ============================================
+    const DEBUG = false; // Set to true for verbose logging
     const RELAYS = [
       'wss://relay.damus.io',
       'wss://relay.primal.net'
     ];
     const FEE_PERCENT = 5;
+
+    function debug(...args) {
+      if (DEBUG) debug(...args);
+    }
 
     let relayConnections = [];
     let currentMarket = null;
@@ -549,15 +530,15 @@
       relayConnections = [];
       for (const url of RELAYS) {
         try {
-          console.log('Connecting to', url);
+          debug('Connecting to', url);
           const relay = await Relay.connect(url);
           relayConnections.push(relay);
-          console.log('Connected to', url);
+          debug('Connected to', url);
         } catch (e) {
           console.error('Failed to connect to', url, e);
         }
       }
-      console.log('Connected to', relayConnections.length, 'relays');
+      debug('Connected to', relayConnections.length, 'relays');
       return relayConnections.length > 0;
     }
 
@@ -567,7 +548,7 @@
         try {
           await relay.publish(event);
           published = true;
-          console.log('Published to', relay.url);
+          debug('Published to', relay.url);
         } catch (e) {
           console.error('Failed to publish to', relay.url, e);
         }
@@ -579,29 +560,29 @@
       const events = [];
       const seen = new Set();
 
-      console.log('Fetching events with filter:', filter);
-      console.log('Relay connections:', relayConnections.length);
+      debug('Fetching events with filter:', filter);
+      debug('Relay connections:', relayConnections.length);
 
       // Reconnect if needed
       const activeRelays = relayConnections.filter(r => r.connected);
-      console.log('Active relays:', activeRelays.length);
+      debug('Active relays:', activeRelays.length);
 
       if (activeRelays.length === 0) {
-        console.log('No active relays, reconnecting...');
+        debug('No active relays, reconnecting...');
         relayConnections = [];
         await connectRelays();
       }
 
       for (const relay of relayConnections) {
         if (!relay.connected) {
-          console.log('Skipping disconnected relay:', relay.url);
+          debug('Skipping disconnected relay:', relay.url);
           continue;
         }
         try {
-          console.log('Subscribing to', relay.url);
+          debug('Subscribing to', relay.url);
           const sub = relay.subscribe([filter], {
             onevent(event) {
-              console.log('Got event from', relay.url, event.id);
+              debug('Got event from', relay.url, event.id);
               if (!seen.has(event.id)) {
                 seen.add(event.id);
                 events.push(event);
@@ -615,7 +596,7 @@
           console.error('Failed to fetch from', relay.url, e);
         }
       }
-      console.log('Total events found:', events.length);
+      debug('Total events found:', events.length);
       return events;
     }
 
@@ -658,9 +639,9 @@
       // Create new connection
       nwcRelayConnecting = true;
       try {
-        console.log('Connecting to NWC relay:', nwc.relay);
+        debug('Connecting to NWC relay:', nwc.relay);
         nwcRelay = await Relay.connect(nwc.relay);
-        console.log('Connected to NWC relay');
+        debug('Connected to NWC relay');
         return nwcRelay;
       } finally {
         nwcRelayConnecting = false;
@@ -675,7 +656,7 @@
     }
 
     async function nwcRequest(method, params = {}) {
-      console.log('NWC request:', method, params);
+      debug('NWC request:', method, params);
       const nwc = parseNwcString(creatorNwcString);
       if (!nwc) throw new Error('Invalid NWC connection');
 
@@ -717,15 +698,15 @@
           since: Math.floor(Date.now() / 1000) - 10
         };
         const subId = `deekay-pm-${signedEvent.id.slice(0, 8)}`;
-        console.log('NWC subscribing with filter:', JSON.stringify(filter, null, 2));
-        console.log('Our pubkey (from signed event):', signedEvent.pubkey);
-        console.log('Request event ID:', signedEvent.id);
-        console.log('Subscription ID:', subId);
+        debug('NWC subscribing with filter:', JSON.stringify(filter, null, 2));
+        debug('Our pubkey (from signed event):', signedEvent.pubkey);
+        debug('Request event ID:', signedEvent.id);
+        debug('Subscription ID:', subId);
 
         const sub = relay.subscribe([filter], {
           id: subId,
           async onevent(event) {
-            console.log('=== Got NWC response event ===');
+            debug('=== Got NWC response event ===');
             try {
               const decrypted = await nip04Decrypt(secretKey, nwc.pubkey, event.content);
               const response = JSON.parse(decrypted);
@@ -742,10 +723,10 @@
             }
           },
           oneose() {
-            console.log('NWC subscription EOSE - now publishing request');
+            debug('NWC subscription EOSE - now publishing request');
             // Publish request AFTER subscription is established and EOSE received
             relay.publish(signedEvent).then(() => {
-              console.log('Request published:', signedEvent.id);
+              debug('Request published:', signedEvent.id);
             }).catch(e => {
               console.error('Failed to publish request:', e);
               clearTimeout(timeout);
@@ -787,7 +768,7 @@
     }
 
     async function createMarket() {
-      console.log('Creating market...');
+      debug('Creating market...');
       try {
 
       const nwcString = document.getElementById('nwc-input').value.trim();
@@ -805,14 +786,14 @@
       creatorNwcString = nwcString;
 
       // Generate keypair for this market
-      console.log('Generating keypair...');
+      debug('Generating keypair...');
       const keypair = generateKeypair();
       creatorNsec = keypair.nsec;
-      console.log('Keypair generated:', keypair.npub);
+      debug('Keypair generated:', keypair.npub);
 
       // Connect to relays
       if (relayConnections.length === 0) {
-        console.log('Connecting to relays...');
+        debug('Connecting to relays...');
         const connected = await connectRelays();
         if (!connected) {
           setCreateStatus(false);
@@ -844,18 +825,18 @@
         content: JSON.stringify(marketContent)
       };
 
-      console.log('Signing event...');
+      debug('Signing event...');
       const signedEvent = finalizeEvent(event, keypair.sk);
-      console.log('Event signed:', signedEvent.id);
+      debug('Event signed:', signedEvent.id);
 
-      console.log('Publishing event...');
+      debug('Publishing event...');
       const published = await publishEvent(signedEvent);
       if (!published) {
         setCreateStatus(false);
         alert('Failed to publish market');
         return;
       }
-      console.log('Event published!');
+      debug('Event published!');
       setCreateStatus(false);
 
       // Store NWC and SK in localStorage for this market
@@ -913,45 +894,19 @@
     // ============================================
     // LOAD MARKET
     // ============================================
-    async function loadMarketById(marketIdParam) {
-      let input = marketIdParam || document.getElementById('market-id-input').value.trim();
-
-      // If it's a URL, extract the market ID from it
-      if (input.includes('?m=')) {
-        try {
-          const url = new URL(input);
-          input = url.searchParams.get('m') || input;
-        } catch (e) {
-          // Not a valid URL, try as-is
-        }
-      }
-
+    async function loadMarketById(marketId) {
       // If it's already a hex event ID (64 chars), use it directly
-      const eventId = input.length === 64 && /^[a-f0-9]+$/.test(input) ? input : decodeNoteId(input);
+      const eventId = marketId.length === 64 && /^[a-f0-9]+$/.test(marketId) ? marketId : decodeNoteId(marketId);
       if (!eventId) {
-        alert('Invalid market URL or ID');
+        alert('Invalid market ID');
         return;
       }
-
-      // Show loading state (only if using the input form)
-      if (!marketIdParam) {
-        document.getElementById('btn-load-market').classList.add('hidden');
-        document.getElementById('load-status').classList.remove('hidden');
-      }
-
-      try {
-        await loadMarket(eventId);
-      } finally {
-        if (!marketIdParam) {
-          document.getElementById('btn-load-market').classList.remove('hidden');
-          document.getElementById('load-status').classList.add('hidden');
-        }
-      }
+      await loadMarket(eventId);
     }
     window.loadMarketById = loadMarketById;
 
     async function loadMarket(eventId) {
-      console.log('Loading market:', eventId);
+      debug('Loading market:', eventId);
 
       // Connect to relays
       if (relayConnections.length === 0) {
@@ -968,7 +923,7 @@
         kinds: [1]
       });
 
-      console.log('Market events found:', marketEvents.length);
+      debug('Market events found:', marketEvents.length);
 
       if (marketEvents.length === 0) {
         alert('Market not found. Check console for details.');
@@ -1164,7 +1119,7 @@
     window.updatePotentialWinnings = updatePotentialWinnings;
 
     async function placeBet(outcome) {
-      console.log('Placing bet on', outcome);
+      debug('Placing bet on', outcome);
       const payoutAddress = document.getElementById('payout-address-input').value.trim();
       const amount = parseInt(document.getElementById('bet-amount-input').value);
 
@@ -1249,19 +1204,19 @@
       }
       pollingAttempts = 0;
 
-      console.log('=== STARTING PAYMENT POLLING ===');
-      console.log('Payment hash:', pendingInvoice?.paymentHash);
+      debug('=== STARTING PAYMENT POLLING ===');
+      debug('Payment hash:', pendingInvoice?.paymentHash);
 
       pollingInterval = setInterval(async () => {
         if (!pendingInvoice) {
-          console.log('No pending invoice, stopping polling');
+          debug('No pending invoice, stopping polling');
           clearInterval(pollingInterval);
           return;
         }
 
         pollingAttempts++;
         if (pollingAttempts > MAX_POLLING_ATTEMPTS) {
-          console.log('Max polling attempts reached, stopping');
+          debug('Max polling attempts reached, stopping');
           clearInterval(pollingInterval);
           document.getElementById('payment-status').textContent = 'Auto-verify timed out. Use manual verification below.';
           document.getElementById('manual-preimage-section').open = true;
@@ -1269,10 +1224,10 @@
         }
 
         try {
-          console.log(`Polling attempt ${pollingAttempts}/${MAX_POLLING_ATTEMPTS}`);
+          debug(`Polling attempt ${pollingAttempts}/${MAX_POLLING_ATTEMPTS}`);
           const result = await checkPaymentStatus();
           if (result) {
-            console.log('Payment confirmed via lookup_invoice!');
+            debug('Payment confirmed via lookup_invoice!');
             clearInterval(pollingInterval);
           }
         } catch (e) {
@@ -1292,18 +1247,18 @@
         }
       };
 
-      console.log('=== LOOKUP_INVOICE REQUEST ===');
-      console.log('Request:', JSON.stringify(request, null, 2));
+      debug('=== LOOKUP_INVOICE REQUEST ===');
+      debug('Request:', JSON.stringify(request, null, 2));
 
       try {
         const result = await nwcRequest('lookup_invoice', request.params);
 
-        console.log('=== LOOKUP_INVOICE RESPONSE ===');
-        console.log('Response:', JSON.stringify(result, null, 2));
+        debug('=== LOOKUP_INVOICE RESPONSE ===');
+        debug('Response:', JSON.stringify(result, null, 2));
 
         // Check if invoice is settled - accept either preimage or settled_at as proof
         if (result && (result.preimage || result.settled_at)) {
-          console.log('Invoice settled!', result.preimage ? `Preimage: ${result.preimage}` : `Settled at: ${result.settled_at}`);
+          debug('Invoice settled!', result.preimage ? `Preimage: ${result.preimage}` : `Settled at: ${result.settled_at}`);
           document.getElementById('payment-status').textContent = 'Payment received! Recording bet...';
 
           // If we have preimage, verify it matches payment_hash
@@ -1325,20 +1280,20 @@
           } else {
             // No preimage, but wallet confirmed settlement via settled_at
             // Trust the NWC provider's confirmation
-            console.log('No preimage returned, but wallet confirmed payment via settled_at');
+            debug('No preimage returned, but wallet confirmed payment via settled_at');
             pendingInvoice.settled_at = result.settled_at;
             await recordBet();
             return true;
           }
         } else if (result && result.state) {
-          console.log('Invoice state:', result.state);
+          debug('Invoice state:', result.state);
           document.getElementById('payment-status').textContent = `Waiting for payment... (${result.state})`;
         }
       } catch (e) {
         console.error('lookup_invoice error:', e.message);
         // Log the full error for debugging with Primal
-        console.log('=== LOOKUP_INVOICE ERROR ===');
-        console.log('Error details:', e);
+        debug('=== LOOKUP_INVOICE ERROR ===');
+        debug('Error details:', e);
       }
 
       return false;
@@ -1367,7 +1322,7 @@
         // Send payment - this returns the preimage!
         const response = await window.webln.sendPayment(pendingInvoice.paymentRequest);
 
-        console.log('WebLN payment response:', response);
+        debug('WebLN payment response:', response);
 
         if (response.preimage) {
           document.getElementById('payment-status').textContent = 'Payment successful! Verifying...';
@@ -1381,7 +1336,7 @@
             .join('');
 
           if (hashHex === pendingInvoice.paymentHash) {
-            console.log('Preimage verified!');
+            debug('Preimage verified!');
             await recordBet();
           } else {
             console.error('Preimage mismatch:', hashHex, '!==', pendingInvoice.paymentHash);
@@ -1397,50 +1352,6 @@
       }
     }
     window.payWithWebLN = payWithWebLN;
-
-    async function verifyPreimage() {
-      if (!pendingInvoice) {
-        alert('No pending invoice');
-        return;
-      }
-
-      const preimageHex = document.getElementById('preimage-input').value.trim();
-      if (!preimageHex || preimageHex.length !== 64) {
-        alert('Please enter a valid preimage (64 hex characters)');
-        return;
-      }
-
-      document.getElementById('payment-status').textContent = 'Verifying...';
-
-      try {
-        // Convert preimage hex to bytes
-        const preimageBytes = hexToBytes(preimageHex);
-
-        // Compute SHA256 of preimage
-        const hashBuffer = await crypto.subtle.digest('SHA-256', preimageBytes);
-        const hashHex = Array.from(new Uint8Array(hashBuffer))
-          .map(b => b.toString(16).padStart(2, '0'))
-          .join('');
-
-        console.log('Preimage:', preimageHex);
-        console.log('Computed hash:', hashHex);
-        console.log('Expected hash:', pendingInvoice.paymentHash);
-
-        if (hashHex === pendingInvoice.paymentHash) {
-          console.log('Payment verified!');
-          document.getElementById('payment-status').textContent = 'Payment verified!';
-          pendingInvoice.preimage = preimageHex;
-          await recordBet();
-        } else {
-          document.getElementById('payment-status').textContent = 'Invalid preimage - does not match invoice';
-          alert('Invalid preimage. Make sure you paid the correct invoice and copied the preimage correctly.');
-        }
-      } catch (e) {
-        console.error('Verification error:', e);
-        document.getElementById('payment-status').textContent = 'Verification error: ' + e.message;
-      }
-    }
-    window.verifyPreimage = verifyPreimage;
 
     async function recordBet() {
       if (!pendingInvoice) return;
@@ -1561,7 +1472,7 @@
           if (ageMinutes < 60) {
             pendingInvoice = pending;
             // Auto-recovery: check if this pending bet was actually paid
-            console.log('Found pending bet, checking if paid via lookup_invoice...');
+            debug('Found pending bet, checking if paid via lookup_invoice...');
             autoRecoverPendingBet();
           } else {
             // Invoice expired, clear it
@@ -1576,7 +1487,7 @@
 
     async function autoRecoverPendingBet() {
       if (!pendingInvoice || !nwcString) {
-        console.log('Cannot auto-recover: missing pending invoice or NWC');
+        debug('Cannot auto-recover: missing pending invoice or NWC');
         return;
       }
 
@@ -1586,10 +1497,10 @@
           payment_hash: pendingInvoice.paymentHash
         });
 
-        console.log('Auto-recovery lookup_invoice result:', result);
+        debug('Auto-recovery lookup_invoice result:', result);
 
         if (result && (result.preimage || result.settled_at)) {
-          console.log('Pending bet was paid! Auto-recording...');
+          debug('Pending bet was paid! Auto-recording...');
           if (result.preimage) {
             pendingInvoice.preimage = result.preimage;
           } else {
@@ -1598,7 +1509,7 @@
           await recordBet();
           alert('Found a pending payment that was completed. Your bet has been recorded!');
         } else {
-          console.log('Pending bet was not paid, clearing...');
+          debug('Pending bet was not paid, clearing...');
           localStorage.removeItem(`pending_bet_${currentMarket.id}`);
           pendingInvoice = null;
         }
@@ -1740,7 +1651,7 @@
     // RESOLUTION
     // ============================================
     async function resolveMarket(outcome) {
-      console.log('Resolving market:', outcome);
+      debug('Resolving market:', outcome);
       const nsecInput = document.getElementById('resolve-nsec-input').value.trim();
       const sk = decodeNsec(nsecInput);
 
@@ -1794,19 +1705,19 @@
       const feeAmount = Math.min(feeTarget, losingPool); // Cap fee so winners get at least 1.0x
       const amountToWinners = totalPool - feeAmount;
 
-      console.log('=== PAYOUT CALCULATION ===');
-      console.log('Total bets:', currentBets.length);
-      console.log('Winners:', winners.length, 'Losers:', losers.length);
-      console.log('Winning pool:', winningPool, 'sats');
-      console.log('Losing pool:', losingPool, 'sats');
-      console.log('Total pool:', totalPool, 'sats');
-      console.log('Fee target (5% of total):', feeTarget, 'sats');
-      console.log('Fee actual (capped at losers):', feeAmount, 'sats');
-      console.log('Amount to winners:', amountToWinners, 'sats');
+      debug('=== PAYOUT CALCULATION ===');
+      debug('Total bets:', currentBets.length);
+      debug('Winners:', winners.length, 'Losers:', losers.length);
+      debug('Winning pool:', winningPool, 'sats');
+      debug('Losing pool:', losingPool, 'sats');
+      debug('Total pool:', totalPool, 'sats');
+      debug('Fee target (5% of total):', feeTarget, 'sats');
+      debug('Fee actual (capped at losers):', feeAmount, 'sats');
+      debug('Amount to winners:', amountToWinners, 'sats');
 
       const payouts = winners.map(b => {
         const payout = Math.floor(b.amount_sats / winningPool * amountToWinners);
-        console.log(`Winner bet ${b.amount_sats} sats, gets ${payout} sats (profit: ${payout - b.amount_sats})`);
+        debug(`Winner bet ${b.amount_sats} sats, gets ${payout} sats (profit: ${payout - b.amount_sats})`);
         return {
           address: b.payout_address,
           amount: payout
@@ -1908,10 +1819,10 @@
 
           // First, get an invoice from the Lightning Address
           const [name, domain] = payout.address.split('@');
-          console.log(`Fetching LNURL for ${name}@${domain}...`);
+          debug(`Fetching LNURL for ${name}@${domain}...`);
           const lnurlResponse = await fetch(`https://${domain}/.well-known/lnurlp/${name}`);
           const lnurlData = await lnurlResponse.json();
-          console.log('LNURL data:', lnurlData);
+          debug('LNURL data:', lnurlData);
 
           if (lnurlData.status === 'ERROR') {
             throw new Error(`LNURL error: ${lnurlData.reason}`);
@@ -1920,10 +1831,10 @@
           // Request an invoice
           const callbackUrl = new URL(lnurlData.callback);
           callbackUrl.searchParams.set('amount', payout.amount * 1000); // millisats
-          console.log('Requesting invoice from:', callbackUrl.toString());
+          debug('Requesting invoice from:', callbackUrl.toString());
           const invoiceResponse = await fetch(callbackUrl.toString());
           const invoiceData = await invoiceResponse.json();
-          console.log('Invoice data:', invoiceData);
+          debug('Invoice data:', invoiceData);
 
           if (invoiceData.status === 'ERROR') {
             throw new Error(`Invoice error: ${invoiceData.reason}`);
@@ -1933,15 +1844,15 @@
           }
 
           // Pay the invoice
-          console.log('Paying invoice:', invoiceData.pr?.substring(0, 50) + '...');
+          debug('Paying invoice:', invoiceData.pr?.substring(0, 50) + '...');
           const payResult = await nwcRequest('pay_invoice', {
             invoice: invoiceData.pr
           });
-          console.log('Payment result:', payResult);
+          debug('Payment result:', payResult);
 
           // Verify we got a preimage back (proof of payment)
           if (payResult && payResult.preimage) {
-            console.log('Payment confirmed with preimage:', payResult.preimage);
+            debug('Payment confirmed with preimage:', payResult.preimage);
             successful++;
           } else {
             console.warn('Payment returned but no preimage - may not have succeeded:', payResult);
@@ -1986,18 +1897,12 @@
     function setupEventListeners() {
       // Home view buttons
       document.getElementById('btn-create-view')?.addEventListener('click', () => showView('create-view'));
-      document.getElementById('btn-load-view')?.addEventListener('click', () => showView('load-view'));
 
       // Create market buttons
       document.getElementById('btn-create-market')?.addEventListener('click', () => {
-        console.log('Create Market button clicked');
         createMarket();
       });
       document.getElementById('btn-cancel-create')?.addEventListener('click', () => showView('home-view'));
-
-      // Load market buttons
-      document.getElementById('btn-load-market')?.addEventListener('click', () => loadMarketById());
-      document.getElementById('btn-back-load')?.addEventListener('click', () => showView('home-view'));
 
       // Prefill resolution date to 1 week from now
       const nextWeek = new Date();
