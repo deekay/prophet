@@ -251,7 +251,8 @@
 
     <div id="create-step-1">
       <label for="question-input">Prophecy</label>
-      <input type="text" id="question-input" placeholder="Will X happen by Y date?" />
+      <input type="text" id="question-input" placeholder="Will X happen by Y date?" oninput="checkQuestionFormat()" />
+      <p id="question-hint" class="hidden" style="color: #fbbf24; font-size: 13px; margin: 4px 0 0 0;">Tip: Phrase as a yes/no question (e.g. "Will...?")</p>
 
       <label for="yes-criteria-input">YES wins if...</label>
       <input type="text" id="yes-criteria-input" placeholder="Steve shaves his beard by end of month" />
@@ -467,7 +468,7 @@
 
   <footer>
     <p>powered by bitcoin, nostr, and lightning</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v72</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v73</p>
   </footer>
 
   <!-- Scripts -->
@@ -1179,6 +1180,18 @@
 
     }
     window.updatePotentialWinnings = updatePotentialWinnings;
+
+    function checkQuestionFormat() {
+      const input = document.getElementById('question-input').value.trim();
+      const hint = document.getElementById('question-hint');
+
+      if (input.length > 5 && !input.endsWith('?')) {
+        hint.classList.remove('hidden');
+      } else {
+        hint.classList.add('hidden');
+      }
+    }
+    window.checkQuestionFormat = checkQuestionFormat;
 
     function showBetError(message) {
       const el = document.getElementById('bet-error');
@@ -2046,7 +2059,7 @@
     // ============================================
     // VERSION CHECK
     // ============================================
-    const CURRENT_VERSION = '72';
+    const CURRENT_VERSION = '73';
 
     async function checkForUpdates() {
       try {
