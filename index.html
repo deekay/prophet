@@ -248,10 +248,6 @@
     <h2>Create a Prophecy</h2>
 
     <div id="create-step-1">
-      <label for="nwc-input">NWC Connection String</label>
-      <input type="text" id="nwc-input" placeholder="nostr+walletconnect://..." autocomplete="off" />
-      <p style="color: #888; font-size: 14px;">Get this from <a href="https://primal.net/downloads" target="_blank">Primal</a>: Settings → Wallet → Create new wallet connection</p>
-
       <label for="question-input">Prophecy</label>
       <input type="text" id="question-input" placeholder="Will X happen by Y date?" />
 
@@ -266,6 +262,10 @@
 
       <label for="max-bet-input">Max Bet (₿, optional)</label>
       <input type="number" id="max-bet-input" placeholder="10000" />
+
+      <label for="nwc-input">NWC Connection String</label>
+      <input type="text" id="nwc-input" placeholder="nostr+walletconnect://..." autocomplete="off" />
+      <p style="color: #888; font-size: 14px;">Get this from <a href="https://primal.net/downloads" target="_blank">Primal</a>: Settings → Wallet → Create new wallet connection</p>
 
       <button id="btn-create-market">Create Prophecy</button>
       <div id="create-status" class="hidden" style="text-align: center; padding: 20px;" role="status" aria-live="polite">
@@ -460,7 +460,7 @@
 
   <footer>
     <p>Prophet - Powered by Nostr + Lightning</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v64</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v65</p>
   </footer>
 
   <!-- Scripts -->
@@ -1989,7 +1989,7 @@
     // ============================================
     // VERSION CHECK
     // ============================================
-    const CURRENT_VERSION = '64';
+    const CURRENT_VERSION = '65';
 
     async function checkForUpdates() {
       try {
