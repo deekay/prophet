@@ -255,14 +255,14 @@
       <label for="question-input">Prophecy</label>
       <input type="text" id="question-input" placeholder="Will X happen by Y date?" />
 
-      <label for="resolution-date-input">Resolution Date</label>
-      <input type="datetime-local" id="resolution-date-input" />
-
       <label for="yes-criteria-input">YES wins if...</label>
       <input type="text" id="yes-criteria-input" placeholder="Steve shaves his beard by end of month" />
 
       <label for="no-criteria-input">NO wins if...</label>
       <input type="text" id="no-criteria-input" placeholder="The beard survives" />
+
+      <label for="resolution-date-input">Resolution Date</label>
+      <input type="datetime-local" id="resolution-date-input" />
 
       <label for="max-bet-input">Max Bet (₿, optional)</label>
       <input type="number" id="max-bet-input" placeholder="10000" />
@@ -460,7 +460,7 @@
 
   <footer>
     <p>Prophet - Powered by Nostr + Lightning</p>
-    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v63</p>
+    <p style="font-size: 11px; color: #444; margin-top: 12px;" id="version">v64</p>
   </footer>
 
   <!-- Scripts -->
@@ -1989,7 +1989,7 @@
     // ============================================
     // VERSION CHECK
     // ============================================
-    const CURRENT_VERSION = '63';
+    const CURRENT_VERSION = '64';
 
     async function checkForUpdates() {
       try {
