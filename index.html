@@ -465,7 +465,7 @@
   </div>
 
   <footer>
-    <p style="font-size: 11px; color: #444;" id="version">v77</p>
+    <p style="font-size: 11px; color: #444;" id="version">v78</p>
   </footer>
 
   <!-- Scripts -->
@@ -562,9 +562,27 @@
       return relayConnections.length > 0;
     }
 
+    async function ensureRelayConnections() {
+      // Check if we have active connections
+      const activeRelays = relayConnections.filter(r => r.connected);
+      if (activeRelays.length === 0) {
+        debug('No active relays, reconnecting...');
+        relayConnections = [];
+        await connectRelays();
+      }
+      return relayConnections.filter(r => r.connected).length > 0;
+    }
+
     async function publishEvent(event) {
+      // Ensure we have active connections before publishing
+      await ensureRelayConnections();
+
       let published = false;
       for (const relay of relayConnections) {
+        if (!relay.connected) {
+          debug('Skipping disconnected relay:', relay.url);
+          continue;
+        }
         try {
           await relay.publish(event);
           published = true;
@@ -2105,7 +2123,7 @@
     // ============================================
     // VERSION CHECK
     // ============================================
-    const CURRENT_VERSION = '77';
+    const CURRENT_VERSION = '78';
 
     async function checkForUpdates() {
       try {
