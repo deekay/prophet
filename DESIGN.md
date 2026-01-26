@@ -802,6 +802,46 @@ How similar apps handle the "receive payment" problem:
 
 ---
 
+## Future Roadmap
+
+Based on community feedback, here are potential improvements organized by priority.
+
+### Implemented (v79)
+
+| Feature | Description |
+|---------|-------------|
+| **Payout progress tracking** | Payouts save progress to localStorage after each success. If browser closes mid-payout, creator can resume where they left off. |
+| **NIP-07 browser extension support** | Login with Alby, nos2x, or other Nostr extensions. No nsec paste required. |
+| **Additional relay fallbacks** | Added nos.lol and relay.nostr.band for better reliability. |
+
+### Phase 2: Medium-term Improvements
+
+| Feature | Description | Complexity |
+|---------|-------------|------------|
+| **Locked-in odds** | Record multiplier at bet time, honor it regardless of later bets. Gives bettors certainty while keeping parimutuel simplicity. | Medium |
+| **NIP-65 relay discovery** | Read creator's relay list to ensure bettors connect to the right relays. Solves discoverability across different relay sets. | Medium |
+| **Kind 1 social posts** | Optionally post market creation as a standard Nostr note for feed visibility. Markets would "unfurl" when the link is clicked. | Low |
+
+### Phase 3: Future Exploration
+
+| Feature | Description | Complexity |
+|---------|-------------|------------|
+| **Cashu escrow** | Convert bets to ecash tokens held in market events, reducing trust in creator. Requires mint integration and user education. | Very High |
+| **NIP-32 labeling** | Use NIP-32 for resolution events, improving interoperability with other Nostr clients. | Low |
+| **Virtual AMM** | Replace parimutuel with AMM for fixed odds at bet time. Major architectural change, only if demand warrants. | Very High |
+| **Multi-outcome markets** | Support more than Yes/No (e.g., "Who will win: A, B, C, or D?"). | High |
+| **DLC integration** | Discreet Log Contracts for truly trustless escrow. Complex but would eliminate creator trust requirement. | Very High |
+
+### Won't Do (and why)
+
+| Feature | Reason |
+|---------|--------|
+| **Server-based escrow** | Defeats the serverless architecture goal |
+| **Fiat payments** | Regulatory complexity; Lightning is the value layer |
+| **Automated oracles** | Adds complexity; reputation-based creator resolution works for social bets |
+
+---
+
 ## Document History
 
 - **2025-01-11**: Initial design document created from planning session

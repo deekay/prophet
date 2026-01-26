@@ -245,3 +245,15 @@ Must have NWC-compatible wallet:
 3. **Verification**: Preimage + SHA256 check (cryptographic, client-side)
 4. **Trust model**: Bettors trust creator to resolve honestly and pay out
 5. **Data storage**: Nostr relays (decentralized, public)
+
+---
+
+## Recent Improvements (v79)
+
+| Problem | Solution |
+|---------|----------|
+| **Payout interruption** | Progress saved after each payment. Creator can resume if browser closes. |
+| **Secret key friction** | NIP-07 support - login with Alby/nos2x extension, no nsec paste needed. |
+| **Relay reliability** | Added fallback relays (nos.lol, relay.nostr.band) beyond Damus and Primal. |
+
+See DESIGN.md "Future Roadmap" section for planned improvements.

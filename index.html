@@ -420,6 +420,13 @@
     <h2>Creator Dashboard</h2>
 
     <div id="creator-login">
+      <div id="nip07-login" class="hidden" style="margin-bottom: 20px;">
+        <button onclick="creatorLoginNip07()" style="background: #7c3aed;">Login with Nostr Extension</button>
+        <p style="color: #888; font-size: 13px; margin-top: 8px;">Using Alby, nos2x, or similar</p>
+        <div style="border-top: 1px solid #333; margin: 16px 0; position: relative;">
+          <span style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #0a0a0a; padding: 0 12px; color: #666; font-size: 12px;">or</span>
+        </div>
+      </div>
       <p style="color: #aaa; margin-bottom: 16px;">Enter your nsec to view and manage your prophecies.</p>
       <label for="creator-nsec-input">Your nsec (secret key)</label>
       <input type="password" id="creator-nsec-input" placeholder="nsec1..." autocomplete="off" />
@@ -444,8 +451,10 @@
     <h2>Resolve Prophecy</h2>
     <p id="resolve-question"></p>
 
-    <label for="resolve-nsec-input">Your nsec (secret key)</label>
-    <input type="password" id="resolve-nsec-input" placeholder="nsec1..." autocomplete="off" />
+    <div id="resolve-nsec-section">
+      <label for="resolve-nsec-input">Your nsec (secret key)</label>
+      <input type="password" id="resolve-nsec-input" placeholder="nsec1..." autocomplete="off" />
+    </div>
 
     <div id="resolve-form">
       <p>Select the winning outcome:</p>
@@ -465,7 +474,7 @@
   </div>
 
   <footer>
-    <p style="font-size: 11px; color: #444;" id="version">v78</p>
+    <p style="font-size: 11px; color: #444;" id="version">v79</p>
   </footer>
 
   <!-- Scripts -->
@@ -485,7 +494,9 @@
     const DEBUG = false; // Set to true for verbose logging
     const RELAYS = [
       'wss://relay.damus.io',
-      'wss://relay.primal.net'
+      'wss://relay.primal.net',
+      'wss://nos.lol',
+      'wss://relay.nostr.band'
     ];
     const FEE_PERCENT = 5;
 
@@ -510,6 +521,33 @@
       document.getElementById(viewId).classList.add('active');
     }
     window.showView = showView;
+
+    // ============================================
+    // NIP-07 (Browser Extension) SUPPORT
+    // ============================================
+    function hasNip07() {
+      return typeof window.nostr !== 'undefined';
+    }
+
+    async function nip07GetPublicKey() {
+      if (!hasNip07()) return null;
+      try {
+        return await window.nostr.getPublicKey();
+      } catch (e) {
+        console.error('NIP-07 getPublicKey failed:', e);
+        return null;
+      }
+    }
+
+    async function nip07SignEvent(event) {
+      if (!hasNip07()) return null;
+      try {
+        return await window.nostr.signEvent(event);
+      } catch (e) {
+        console.error('NIP-07 signEvent failed:', e);
+        return null;
+      }
+    }
 
     // ============================================
     // NOSTR UTILITIES
@@ -1701,6 +1739,7 @@
 
       creatorSk = sk;
       creatorPk = getPublicKey(sk);
+      window.useNip07 = false;
 
       // Save nsec for convenience (user can logout to clear)
       localStorage.setItem('creator_nsec', nsecInput);
@@ -1712,6 +1751,34 @@
       await loadCreatorMarkets();
     }
     window.creatorLogin = creatorLogin;
+
+    async function creatorLoginNip07() {
+      if (!hasNip07()) {
+        alert('No Nostr extension detected');
+        return;
+      }
+
+      try {
+        creatorPk = await nip07GetPublicKey();
+        if (!creatorPk) {
+          alert('Failed to get public key from extension');
+          return;
+        }
+
+        creatorSk = null; // Don't have secret key, will use NIP-07 for signing
+        window.useNip07 = true;
+
+        document.getElementById('creator-login').classList.add('hidden');
+        document.getElementById('creator-dashboard').classList.remove('hidden');
+        document.getElementById('creator-pubkey').textContent = creatorPk.slice(0, 8) + '...' + creatorPk.slice(-8);
+
+        await loadCreatorMarkets();
+      } catch (e) {
+        console.error('NIP-07 login failed:', e);
+        alert('Failed to login with extension: ' + e.message);
+      }
+    }
+    window.creatorLoginNip07 = creatorLoginNip07;
 
     function creatorLogout() {
       creatorSk = null;
@@ -1794,17 +1861,31 @@
     async function openCreatorMarket(marketId) {
       // Load the market and go to resolve view
       await loadMarketById(marketId);
-      // Pre-fill the nsec in resolve view
-      document.getElementById('resolve-nsec-input').value = localStorage.getItem('creator_nsec') || '';
+
+      // Hide nsec input if using NIP-07
+      const nsecSection = document.getElementById('resolve-nsec-section');
+      if (window.useNip07 && hasNip07()) {
+        nsecSection.classList.add('hidden');
+      } else {
+        nsecSection.classList.remove('hidden');
+        // Pre-fill the nsec in resolve view
+        document.getElementById('resolve-nsec-input').value = localStorage.getItem('creator_nsec') || '';
+      }
+
       showView('resolve-view');
     }
     window.openCreatorMarket = openCreatorMarket;
 
-    // Auto-login if nsec saved
+    // Auto-login if nsec saved, show NIP-07 if available
     function checkCreatorSession() {
       const savedNsec = localStorage.getItem('creator_nsec');
       if (savedNsec) {
         document.getElementById('creator-nsec-input').value = savedNsec;
+      }
+
+      // Show NIP-07 option if browser extension available
+      if (hasNip07()) {
+        document.getElementById('nip07-login').classList.remove('hidden');
       }
     }
 
@@ -1813,39 +1894,78 @@
     // ============================================
     async function resolveMarket(outcome) {
       debug('Resolving market:', outcome);
-      const nsecInput = document.getElementById('resolve-nsec-input').value.trim();
-      const sk = decodeNsec(nsecInput);
 
-      if (!sk) {
-        alert('Invalid nsec');
-        return;
+      let pk;
+      let signedEvent;
+
+      // Check if using NIP-07
+      if (window.useNip07 && hasNip07()) {
+        pk = await nip07GetPublicKey();
+        if (pk !== currentMarket.pubkey) {
+          alert('Your extension key does not match the prophecy creator');
+          return;
+        }
+
+        // Create resolution event
+        const resolutionContent = {
+          type: 'resolution',
+          market_id: currentMarket.id,
+          winning_outcome: outcome
+        };
+
+        const event = {
+          kind: 1,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [
+            ['t', 'prediction-market'],
+            ['t', 'pm-resolution'],
+            ['e', currentMarket.id]
+          ],
+          content: JSON.stringify(resolutionContent)
+        };
+
+        signedEvent = await nip07SignEvent(event);
+        if (!signedEvent) {
+          alert('Failed to sign with extension');
+          return;
+        }
+      } else {
+        // Use nsec
+        const nsecInput = document.getElementById('resolve-nsec-input').value.trim();
+        const sk = decodeNsec(nsecInput);
+
+        if (!sk) {
+          alert('Invalid nsec');
+          return;
+        }
+
+        pk = getPublicKey(sk);
+        if (pk !== currentMarket.pubkey) {
+          alert('This nsec does not match the prophecy creator');
+          return;
+        }
+
+        // Create resolution event
+        const resolutionContent = {
+          type: 'resolution',
+          market_id: currentMarket.id,
+          winning_outcome: outcome
+        };
+
+        const event = {
+          kind: 1,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [
+            ['t', 'prediction-market'],
+            ['t', 'pm-resolution'],
+            ['e', currentMarket.id]
+          ],
+          content: JSON.stringify(resolutionContent)
+        };
+
+        signedEvent = finalizeEvent(event, sk);
       }
 
-      const pk = getPublicKey(sk);
-      if (pk !== currentMarket.pubkey) {
-        alert('This nsec does not match the prophecy creator');
-        return;
-      }
-
-      // Create resolution event
-      const resolutionContent = {
-        type: 'resolution',
-        market_id: currentMarket.id,
-        winning_outcome: outcome
-      };
-
-      const event = {
-        kind: 1,
-        created_at: Math.floor(Date.now() / 1000),
-        tags: [
-          ['t', 'prediction-market'],
-          ['t', 'pm-resolution'],
-          ['e', currentMarket.id]
-        ],
-        content: JSON.stringify(resolutionContent)
-      };
-
-      const signedEvent = finalizeEvent(event, sk);
       const published = await publishEvent(signedEvent);
 
       if (!published) {
@@ -1940,6 +2060,27 @@
     }
     window.resolveMarket = resolveMarket;
 
+    function getPayoutProgressKey() {
+      return `payout_progress_${currentMarket.id}`;
+    }
+
+    function loadPayoutProgress() {
+      try {
+        const saved = localStorage.getItem(getPayoutProgressKey());
+        return saved ? JSON.parse(saved) : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function savePayoutProgress(progress) {
+      localStorage.setItem(getPayoutProgressKey(), JSON.stringify(progress));
+    }
+
+    function clearPayoutProgress() {
+      localStorage.removeItem(getPayoutProgressKey());
+    }
+
     async function payAllWinners() {
       if (!window.pendingPayouts || window.pendingPayouts.length === 0) {
         alert('No payouts to send');
@@ -1965,18 +2106,38 @@
       const statusEl = document.getElementById('payout-status');
       const payBtn = document.getElementById('btn-pay-winners');
 
+      // Check for existing progress (resume interrupted payout)
+      let progress = loadPayoutProgress();
+      if (!progress) {
+        progress = {
+          marketId: currentMarket.id,
+          payouts: autoPayable.map(p => ({ ...p, status: 'pending' })),
+          startedAt: Date.now()
+        };
+      }
+
+      // Find how many already succeeded
+      const alreadyPaid = progress.payouts.filter(p => p.status === 'paid').length;
+      if (alreadyPaid > 0) {
+        statusEl.innerHTML = `<div class="status info">Resuming: ${alreadyPaid} already paid, continuing...</div>`;
+      }
+
       // Disable button to prevent double-payment
       payBtn.disabled = true;
       payBtn.textContent = 'Paying...';
-      statusEl.innerHTML = '<div class="status info">Sending payouts...</div>';
 
-      let successful = 0;
+      let successful = alreadyPaid;
       let failed = 0;
       const manualCount = window.pendingPayouts.length - autoPayable.length;
 
-      for (const payout of autoPayable) {
+      for (let i = 0; i < progress.payouts.length; i++) {
+        const payout = progress.payouts[i];
+
+        // Skip already paid
+        if (payout.status === 'paid') continue;
+
         try {
-          statusEl.innerHTML = `<div class="status info">Paying ${payout.address} (₿${payout.amount})...</div>`;
+          statusEl.innerHTML = `<div class="status info">Paying ${i + 1}/${progress.payouts.length}: ${payout.address} (₿${payout.amount})...</div>`;
 
           // First, get an invoice from the Lightning Address
           const [name, domain] = payout.address.split('@');
@@ -2011,43 +2172,40 @@
           });
           debug('Payment result:', payResult);
 
-          // Verify we got a preimage back (proof of payment)
-          if (payResult && payResult.preimage) {
-            debug('Payment confirmed with preimage:', payResult.preimage);
-            successful++;
-          } else {
-            console.warn('Payment returned but no preimage - may not have succeeded:', payResult);
-            // Still count as success if no error was thrown, but log warning
-            successful++;
-          }
+          // Mark as paid and save progress immediately
+          progress.payouts[i].status = 'paid';
+          progress.payouts[i].preimage = payResult?.preimage;
+          progress.payouts[i].paidAt = Date.now();
+          savePayoutProgress(progress);
+
+          successful++;
+          debug('Payment confirmed, progress saved');
+
         } catch (e) {
           console.error('Failed to pay', payout.address, e);
+          progress.payouts[i].status = 'failed';
+          progress.payouts[i].error = e.message;
+          savePayoutProgress(progress);
           failed++;
         }
       }
 
-      let msg = `Paid ${successful}/${autoPayable.length} winners with Lightning Addresses.`;
+      let msg = `Paid ${successful}/${autoPayable.length} winners.`;
       if (failed > 0) msg += ` ${failed} failed.`;
-      if (manualCount > 0) msg += ` ${manualCount} winner(s) need manual payout.`;
+      if (manualCount > 0) msg += ` ${manualCount} need manual payout.`;
 
       statusEl.innerHTML = `<div class="status ${failed === 0 ? 'success' : 'warning'}">${msg}</div>`;
 
       if (failed === 0) {
-        // All payments succeeded - keep button disabled
-        payBtn.textContent = 'Paid';
+        // All payments succeeded
+        payBtn.textContent = 'All Paid ✓';
         payBtn.classList.add('secondary');
-        // Clear the pending payouts to prevent re-payment on page actions
+        clearPayoutProgress();
         window.pendingPayouts = [];
       } else {
-        // Some failed - allow retry but only for failed ones
+        // Some failed - allow retry
         payBtn.disabled = false;
         payBtn.textContent = `Retry ${failed} Failed`;
-        // Filter to only keep failed payouts for retry
-        window.pendingPayouts = autoPayable.filter((_, i) => {
-          // This is imperfect but helps prevent double-payment
-          // In a real app, we'd track which specific payments succeeded
-          return i >= successful;
-        });
       }
     }
     window.payAllWinners = payAllWinners;
@@ -2123,7 +2281,7 @@
     // ============================================
     // VERSION CHECK
     // ============================================
-    const CURRENT_VERSION = '78';
+    const CURRENT_VERSION = '79';
 
     async function checkForUpdates() {
       try {
