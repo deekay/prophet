@@ -415,6 +415,7 @@
 
     <div id="betting-closed" class="hidden">
       <div class="status warning">Betting is closed. Awaiting resolution.</div>
+      <button id="btn-resolve" class="hidden" onclick="goToResolve()" style="margin-top: 12px;">Resolve this Prophecy</button>
     </div>
 
     <div id="market-resolved" class="hidden">
@@ -426,6 +427,10 @@
     <div id="recent-bets-section" class="card hidden">
       <h3 style="margin-top: 0;">Recent Bets</h3>
       <div id="bet-list" class="bet-list"></div>
+    </div>
+
+    <div id="creator-back-link" class="hidden" style="margin-top: 20px; text-align: center;">
+      <button class="secondary" onclick="showView('creator-view')">Back to Dashboard</button>
     </div>
 
   </div>
@@ -489,7 +494,7 @@
   </div>
 
   <footer>
-    <p style="font-size: 11px; color: #444;" id="version">v84</p>
+    <p style="font-size: 11px; color: #444;" id="version">v85</p>
   </footer>
 
   <!-- Scripts -->
@@ -1198,12 +1203,23 @@
         document.getElementById('betting-open').classList.add('hidden');
         document.getElementById('betting-closed').classList.remove('hidden');
         document.getElementById('market-resolved').classList.add('hidden');
+        // Show resolve button if user is the creator
+        const isCreator = creatorPk && currentMarket.pubkey === creatorPk;
+        document.getElementById('btn-resolve').classList.toggle('hidden', !isCreator);
       } else {
         document.getElementById('betting-open').classList.remove('hidden');
         document.getElementById('betting-closed').classList.add('hidden');
         document.getElementById('market-resolved').classList.add('hidden');
         // Check for any pending unverified bets
         checkForPendingBet();
+      }
+
+      // Show "Back to Dashboard" link if user is logged in as creator
+      const creatorBackLink = document.getElementById('creator-back-link');
+      if (creatorPk) {
+        creatorBackLink.classList.remove('hidden');
+      } else {
+        creatorBackLink.classList.add('hidden');
       }
     }
 
@@ -1940,22 +1956,35 @@
     }
 
     async function openCreatorMarket(marketId) {
-      // Load the market and go to resolve view
-      await loadMarketById(marketId);
+      // Show loading view immediately
+      showView('loading-view');
 
+      try {
+        // Load the market and bets
+        await loadMarketById(marketId);
+
+        // Go to market view so creator can see bets, pool, etc.
+        showView('market-view');
+      } catch (e) {
+        console.error('Error loading market:', e);
+        alert('Error loading prophecy: ' + e.message);
+        showView('creator-view');
+      }
+    }
+    window.openCreatorMarket = openCreatorMarket;
+
+    function goToResolve() {
       // Hide nsec input if using NIP-07
       const nsecSection = document.getElementById('resolve-nsec-section');
       if (window.useNip07 && hasNip07()) {
         nsecSection.classList.add('hidden');
       } else {
         nsecSection.classList.remove('hidden');
-        // Pre-fill the nsec in resolve view
         document.getElementById('resolve-nsec-input').value = localStorage.getItem('creator_nsec') || '';
       }
-
       showView('resolve-view');
     }
-    window.openCreatorMarket = openCreatorMarket;
+    window.goToResolve = goToResolve;
 
     // Auto-login if nsec saved, show NIP-07 if available
     function checkCreatorSession() {
@@ -2362,7 +2391,7 @@
     // ============================================
     // VERSION CHECK
     // ============================================
-    const CURRENT_VERSION = '84';
+    const CURRENT_VERSION = '85';
 
     async function checkForUpdates() {
       try {
