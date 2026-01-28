@@ -832,6 +832,30 @@ Based on community feedback, here are potential improvements organized by priori
 | **Multi-outcome markets** | Support more than Yes/No (e.g., "Who will win: A, B, C, or D?"). | High |
 | **DLC integration** | Discreet Log Contracts for truly trustless escrow. Complex but would eliminate creator trust requirement. | Very High |
 
+### Evaluated: Cashu/Ecash (NIP-60/61)
+
+We evaluated using Cashu ecash tokens and Nutzaps (NIP-61) as an alternative to NWC. Here's the analysis:
+
+**The Promise:**
+- Creator could be offline during betting (tokens stored on Nostr)
+- "Trust-minimized escrow" via bearer tokens
+- Good for micro-bets (10-100 sats)
+
+**The Reality:**
+For a mainstream user (Cash App, Wallet of Satoshi, Phoenix), the flow is:
+```
+User wants to: Scan QR → Pay Lightning → Done
+```
+
+For ecash to work, someone must receive that Lightning payment and mint tokens. That "someone" is either:
+1. **The creator** → Back to requiring them online (same as NWC)
+2. **A server we run** → Defeats serverless goal
+3. **The bettor** → Requires ecash-native wallet, not mainstream Lightning
+
+**Conclusion:** Cashu only removes the "creator online" requirement if bettors already have ecash. For mainstream Lightning users paying invoices, we still need someone online to receive payment. The current NWC approach with always-on wallets (Primal, Alby Hub) already solves this.
+
+**When to reconsider:** If ecash wallets become mainstream and users commonly hold ecash balances, this could enable true async betting. Until then, it adds complexity without helping the Cash App user.
+
 ### Won't Do (and why)
 
 | Feature | Reason |
@@ -839,6 +863,7 @@ Based on community feedback, here are potential improvements organized by priori
 | **Server-based escrow** | Defeats the serverless architecture goal |
 | **Fiat payments** | Regulatory complexity; Lightning is the value layer |
 | **Automated oracles** | Adds complexity; reputation-based creator resolution works for social bets |
+| **Cashu/ecash (for now)** | Doesn't help mainstream Lightning users; only benefits ecash-native users |
 
 ---
 
